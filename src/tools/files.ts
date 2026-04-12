@@ -1,9 +1,11 @@
 import { z } from 'zod';
 import { seafileRequest, seafileRequestText } from '../seafile.js';
 import { RepoIdSchema, PathSchema, ParentPathSchema, FilenameSchema, type DirEntry } from '../types.js';
+import { validatePath, validateContentSize } from '../utils/validation.js';
+import { loadConfig } from '../config.js';
 
-const SEAFILE_URL = process.env.SEAFILE_URL || '';
-const SEAFILE_TOKEN = process.env.SEAFILE_TOKEN || '';
+const MAX_UPLOAD_SIZE = 100 * 1024 * 1024; // 100MB
+const UPLOAD_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
 export function registerFileTools(server: any) {
   server.registerTool(
@@ -17,8 +19,9 @@ export function registerFileTools(server: any) {
       annotations: { readOnlyHint: true },
     },
     async ({ repo_id, path = '/' }: { repo_id: string; path: string }) => {
+      const validatedPath = validatePath(path);
       const items = await seafileRequest<DirEntry[]>(
-        `/api2/repos/${repo_id}/dir/?p=${encodeURIComponent(path)}`,
+        `/api2/repos/${repo_id}/dir/?p=${encodeURIComponent(validatedPath)}`,
       );
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(items, null, 2) }],
@@ -37,8 +40,9 @@ export function registerFileTools(server: any) {
       annotations: { readOnlyHint: true },
     },
     async ({ repo_id, path }: { repo_id: string; path: string }) => {
+      const validatedPath = validatePath(path);
       const downloadLink = await seafileRequestText(
-        `/api2/repos/${repo_id}/file/?p=${encodeURIComponent(path)}`,
+        `/api2/repos/${repo_id}/file/?p=${encodeURIComponent(validatedPath)}`,
       );
       return {
         content: [{ type: 'text' as const, text: JSON.stringify({ download_link: downloadLink }, null, 2) }],
@@ -57,8 +61,9 @@ export function registerFileTools(server: any) {
       annotations: { readOnlyHint: true },
     },
     async ({ repo_id, path }: { repo_id: string; path: string }) => {
+      const validatedPath = validatePath(path);
       const detail = await seafileRequest<Record<string, unknown>>(
-        `/api2/repos/${repo_id}/file/detail/?p=${encodeURIComponent(path)}`,
+        `/api2/repos/${repo_id}/file/detail/?p=${encodeURIComponent(validatedPath)}`,
       );
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(detail, null, 2) }],
@@ -79,8 +84,12 @@ export function registerFileTools(server: any) {
       annotations: { idempotentHint: false },
     },
     async ({ repo_id, path, filename, content }: { repo_id: string; path: string; filename: string; content: string }) => {
+      // Validate content size
+      validateContentSize(content, MAX_UPLOAD_SIZE);
+      
+      const validatedPath = validatePath(path);
       const uploadLink = await seafileRequestText(
-        `/api2/repos/${repo_id}/upload-link/?p=${encodeURIComponent(path)}`,
+        `/api2/repos/${repo_id}/upload-link/?p=${encodeURIComponent(validatedPath)}`,
       );
 
       let fileBuffer: Buffer;
@@ -92,13 +101,15 @@ export function registerFileTools(server: any) {
 
       const formData = new FormData();
       formData.append('file', new Blob([fileBuffer]), filename);
-      formData.append('parent_dir', path);
+      formData.append('parent_dir', validatedPath);
       formData.append('replace', '1');
 
+      const config = loadConfig();
       const uploadResponse = await fetch(uploadLink, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${SEAFILE_TOKEN}` },
+        headers: { Authorization: `Bearer ${config.SEAFILE_TOKEN}` },
         body: formData,
+        signal: AbortSignal.timeout(UPLOAD_TIMEOUT),
       });
 
       if (!uploadResponse.ok) {
@@ -110,7 +121,7 @@ export function registerFileTools(server: any) {
 
       const result = (await uploadResponse.json()) as Record<string, unknown>;
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, filename, path, ...result }, null, 2) }],
+        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, filename, path: validatedPath, ...result }, null, 2) }],
       };
     },
   );
@@ -126,13 +137,14 @@ export function registerFileTools(server: any) {
       annotations: { destructiveHint: true },
     },
     async ({ repo_id, path }: { repo_id: string; path: string }) => {
+      const validatedPath = validatePath(path);
       await seafileRequest(`/api/v2.1/repos/${repo_id}/file/`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ p: path }).toString(),
+        body: new URLSearchParams({ p: validatedPath }).toString(),
       });
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, repo_id, path }) }],
+        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, repo_id, path: validatedPath }) }],
       };
     },
   );

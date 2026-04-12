@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { seafileRequest } from '../seafile.js';
 import { RepoIdSchema, PathSchema } from '../types.js';
+import { validatePath } from '../utils/validation.js';
 
 export function registerStarredTools(server: any) {
   server.registerTool(
@@ -29,14 +30,15 @@ export function registerStarredTools(server: any) {
       annotations: { idempotentHint: true },
     },
     async ({ repo_id, path }: { repo_id: string; path: string }) => {
-      const body = new URLSearchParams({ repo_id, path });
+      const validatedPath = validatePath(path);
+      const body = new URLSearchParams({ repo_id, path: validatedPath });
       await seafileRequest('/api/v2.1/starred-items/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: body.toString(),
       });
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, repo_id, path }) }],
+        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, repo_id, path: validatedPath }) }],
       };
     },
   );
@@ -52,14 +54,15 @@ export function registerStarredTools(server: any) {
       annotations: { idempotentHint: true },
     },
     async ({ repo_id, path }: { repo_id: string; path: string }) => {
-      const body = new URLSearchParams({ repo_id, path });
+      const validatedPath = validatePath(path);
+      const body = new URLSearchParams({ repo_id, path: validatedPath });
       await seafileRequest('/api/v2.1/starred-items/', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: body.toString(),
       });
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, repo_id, path }) }],
+        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, repo_id, path: validatedPath }) }],
       };
     },
   );

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { seafileRequest } from '../seafile.js';
 import { RepoIdSchema, PathSchema } from '../types.js';
+import { validatePath, validateEmail } from '../utils/validation.js';
 
 export function registerSharingTools(server: any) {
   server.registerTool(
@@ -16,9 +17,10 @@ export function registerSharingTools(server: any) {
       annotations: { idempotentHint: false },
     },
     async ({ repo_id, path, password, expire_days }: { repo_id: string; path: string; password?: string; expire_days?: number }) => {
+      const validatedPath = validatePath(path);
       const body = new URLSearchParams({
         repo_id,
-        path,
+        path: validatedPath,
       });
       if (password) body.set('password', password);
       if (expire_days !== undefined) body.set('expire_days', String(expire_days));
@@ -47,7 +49,10 @@ export function registerSharingTools(server: any) {
     async ({ repo_id, path }: { repo_id?: string; path?: string }) => {
       const params = new URLSearchParams();
       if (repo_id) params.set('repo_id', repo_id);
-      if (path) params.set('path', path);
+      if (path) {
+        const validatedPath = validatePath(path);
+        params.set('path', validatedPath);
+      }
 
       const results = await seafileRequest<Record<string, unknown>[]>(
         `/api/v2.1/share-links/?${params.toString()}`,
@@ -79,14 +84,21 @@ export function registerSharingTools(server: any) {
     'share_to_user',
     {
       description: 'Share a library or folder with a user or group in Seafile',
-      inputSchema: {
+      inputSchema: z.object({
         repo_id: RepoIdSchema,
         share_type: z.enum(['user', 'group']).describe('Share to a user or group'),
         username: z.string().optional().describe('Email of the user to share with (required if share_type=user)'),
         group_id: z.number().optional().describe('Group ID to share with (required if share_type=group)'),
         permission: z.enum(['r', 'rw']).default('r').describe('Permission: r (read-only) or rw (read-write)'),
         path: PathSchema.optional().describe('Path to share (for folder sharing)'),
-      },
+      }).refine(
+        (data) => {
+          if (data.share_type === 'user') return !!data.username;
+          if (data.share_type === 'group') return !!data.group_id;
+          return true;
+        },
+        { message: 'username is required for user share, group_id is required for group share' }
+      ),
       annotations: { idempotentHint: false },
     },
     async ({ repo_id, share_type, username, group_id, permission, path }: { repo_id: string; share_type: 'user' | 'group'; username?: string; group_id?: number; permission: string; path?: string }) => {
@@ -94,12 +106,22 @@ export function registerSharingTools(server: any) {
         share_type,
         permission,
       });
-      if (share_type === 'user' && username) body.set('username', username);
-      if (share_type === 'group' && group_id !== undefined) body.set('group_id', String(group_id));
+      
+      if (share_type === 'user' && username) {
+        validateEmail(username);
+        body.set('username', username);
+      }
+      if (share_type === 'group' && group_id !== undefined) {
+        body.set('group_id', String(group_id));
+      }
 
-      const endpointPath = path
-        ? `/api2/repos/${repo_id}/dir/shared_items/?p=${encodeURIComponent(path)}`
-        : `/api2/repos/${repo_id}/dir/shared_items/`;
+      let endpointPath: string;
+      if (path) {
+        const validatedPath = validatePath(path);
+        endpointPath = `/api2/repos/${repo_id}/dir/shared_items/?p=${encodeURIComponent(validatedPath)}`;
+      } else {
+        endpointPath = `/api2/repos/${repo_id}/dir/shared_items/`;
+      }
 
       await seafileRequest(endpointPath, {
         method: 'PUT',
@@ -124,9 +146,13 @@ export function registerSharingTools(server: any) {
     },
     async ({ repo_id, path }: { repo_id?: string; path?: string }) => {
       if (repo_id) {
-        const urlPath = path
-          ? `/api2/repos/${repo_id}/dir/shared_items/?p=${encodeURIComponent(path)}`
-          : `/api2/repos/${repo_id}/dir/shared_items/`;
+        let urlPath: string;
+        if (path) {
+          const validatedPath = validatePath(path);
+          urlPath = `/api2/repos/${repo_id}/dir/shared_items/?p=${encodeURIComponent(validatedPath)}`;
+        } else {
+          urlPath = `/api2/repos/${repo_id}/dir/shared_items/`;
+        }
         const results = await seafileRequest<Record<string, unknown>[]>(urlPath);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }],

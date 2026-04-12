@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { seafileRequest } from '../seafile.js';
-import { RepoIdSchema, PathSchema } from '../types.js';
+import { RepoIdSchema } from '../types.js';
+import { validatePath } from '../utils/validation.js';
 
 export function registerSearchTools(server: any) {
   server.registerTool(
@@ -17,7 +18,10 @@ export function registerSearchTools(server: any) {
     async ({ query, repo_id, search_path }: { query: string; repo_id?: string; search_path?: string }) => {
       const params = new URLSearchParams({ q: query });
       if (repo_id) params.set('repo_id', repo_id);
-      if (search_path) params.set('search_path', search_path);
+      if (search_path) {
+        const validatedPath = validatePath(search_path);
+        params.set('search_path', validatedPath);
+      }
 
       const results = await seafileRequest<Record<string, unknown>>(
         `/api/v2.1/search/file/?${params.toString()}`,

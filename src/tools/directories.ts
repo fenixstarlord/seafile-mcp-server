@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { seafileRequest } from '../seafile.js';
 import { RepoIdSchema, PathSchema } from '../types.js';
+import { validatePath } from '../utils/validation.js';
 
 export function registerDirectoryTools(server: any) {
   server.registerTool(
@@ -15,13 +16,14 @@ export function registerDirectoryTools(server: any) {
       annotations: { idempotentHint: false },
     },
     async ({ repo_id, path, name }: { repo_id: string; path: string; name: string }) => {
-      await seafileRequest(`/api2/repos/${repo_id}/dir/?p=${encodeURIComponent(path)}`, {
+      const validatedPath = validatePath(path);
+      await seafileRequest(`/api2/repos/${repo_id}/dir/?p=${encodeURIComponent(validatedPath)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ operation: 'mkdir', name }).toString(),
       });
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, path: `${path}/${name}` }) }],
+        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, path: `${validatedPath}/${name}` }) }],
       };
     },
   );
@@ -37,11 +39,12 @@ export function registerDirectoryTools(server: any) {
       annotations: { destructiveHint: true },
     },
     async ({ repo_id, path }: { repo_id: string; path: string }) => {
-      await seafileRequest(`/api2/repos/${repo_id}/dir/?p=${encodeURIComponent(path)}`, {
+      const validatedPath = validatePath(path);
+      await seafileRequest(`/api2/repos/${repo_id}/dir/?p=${encodeURIComponent(validatedPath)}`, {
         method: 'DELETE',
       });
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, repo_id, path }) }],
+        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, repo_id, path: validatedPath }) }],
       };
     },
   );
@@ -59,17 +62,18 @@ export function registerDirectoryTools(server: any) {
       annotations: { idempotentHint: false },
     },
     async ({ repo_id, path, new_name, type }: { repo_id: string; path: string; new_name: string; type: 'file' | 'dir' }) => {
+      const validatedPath = validatePath(path);
       const endpoint = type === 'file'
         ? `/api/v2.1/repos/${repo_id}/file/`
         : `/api2/repos/${repo_id}/dir/`;
 
-      await seafileRequest(endpoint + `?p=${encodeURIComponent(path)}`, {
+      await seafileRequest(endpoint + `?p=${encodeURIComponent(validatedPath)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ operation: 'rename', newname: new_name }).toString(),
       });
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, repo_id, path, new_name }) }],
+        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, repo_id, path: validatedPath, new_name }) }],
       };
     },
   );
@@ -88,10 +92,13 @@ export function registerDirectoryTools(server: any) {
       annotations: { idempotentHint: false },
     },
     async ({ repo_id, src_path, dst_path, type, target_repo_id }: { repo_id: string; src_path: string; dst_path: string; type: 'file' | 'dir'; target_repo_id?: string }) => {
+      const validatedSrcPath = validatePath(src_path);
+      const validatedDstPath = validatePath(dst_path);
+      
       const params = new URLSearchParams({
         operation: 'move',
-        src_path,
-        dst_path,
+        src_path: validatedSrcPath,
+        dst_path: validatedDstPath,
       });
       if (target_repo_id) params.set('dst_repo', target_repo_id);
 
@@ -105,7 +112,7 @@ export function registerDirectoryTools(server: any) {
         body: params.toString(),
       });
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, repo_id, src_path, dst_path }) }],
+        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, repo_id, src_path: validatedSrcPath, dst_path: validatedDstPath }) }],
       };
     },
   );
@@ -124,10 +131,13 @@ export function registerDirectoryTools(server: any) {
       annotations: { idempotentHint: false },
     },
     async ({ repo_id, src_path, dst_path, type, target_repo_id }: { repo_id: string; src_path: string; dst_path: string; type: 'file' | 'dir'; target_repo_id?: string }) => {
+      const validatedSrcPath = validatePath(src_path);
+      const validatedDstPath = validatePath(dst_path);
+      
       const params = new URLSearchParams({
         operation: 'copy',
-        src_path,
-        dst_path,
+        src_path: validatedSrcPath,
+        dst_path: validatedDstPath,
       });
       if (target_repo_id) params.set('dst_repo', target_repo_id);
 
@@ -141,7 +151,7 @@ export function registerDirectoryTools(server: any) {
         body: params.toString(),
       });
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, repo_id, src_path, dst_path }) }],
+        content: [{ type: 'text' as const, text: JSON.stringify({ success: true, repo_id, src_path: validatedSrcPath, dst_path: validatedDstPath }) }],
       };
     },
   );
