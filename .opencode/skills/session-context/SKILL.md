@@ -43,11 +43,13 @@ The session state file tracks:
 When starting a new session, always:
 
 1. Check the session state file:
+
    ```bash
    cat .opencode/SESSION_STATE.md
    ```
 
 2. Verify you're on the right branch:
+
    ```bash
    git branch
    ```

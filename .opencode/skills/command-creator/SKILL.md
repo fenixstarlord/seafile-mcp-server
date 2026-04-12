@@ -6,6 +6,7 @@ description: Create OpenCode custom commands for repeatable tasks.
 ## Quick Usage (Already Configured)
 
 ### Create a new command file
+
 ```bash
 mkdir -p .opencode/commands
 ```
@@ -13,6 +14,7 @@ mkdir -p .opencode/commands
 Create `.opencode/commands/<name>.md` with frontmatter and a prompt template.
 
 ### Command file example
+
 ```
 ---
 description: Run tests with coverage
@@ -114,11 +116,12 @@ Create markdown files in the commands/ directory to define custom commands.
 
 Create .opencode/commands/test.md:
 
-.opencode/commands/test.md
----
+## .opencode/commands/test.md
+
 description: Run tests with coverage
 agent: build
 model: anthropic/claude-3-sonnet-20241022
+
 ---
 
 Run the full test suite with coverage report and show any failures.
@@ -138,18 +141,18 @@ Use the command option in your OpenCode config:
 
 opencode.jsonc
 {
-  "$schema": "https://opencode.ai/config.json",
-  "command": {
-    // This becomes the name of the command
-    "test": {
-      // This is the prompt that will be sent to the LLM
-      "template": "Run the full test suite with coverage report and show any failures.\nFocus on the failing tests and suggest fixes.",
-      // This is shown as the description in the TUI
-      "description": "Run tests with coverage",
-      "agent": "build",
-      "model": "anthropic/claude-3-5-sonnet-20241022"
-    }
-  }
+"$schema": "https://opencode.ai/config.json",
+"command": {
+// This becomes the name of the command
+"test": {
+// This is the prompt that will be sent to the LLM
+"template": "Run the full test suite with coverage report and show any failures.\nFocus on the failing tests and suggest fixes.",
+// This is shown as the description in the TUI
+"description": "Run tests with coverage",
+"agent": "build",
+"model": "anthropic/claude-3-5-sonnet-20241022"
+}
+}
 }
 
 Now you can run this command in the TUI:
@@ -162,10 +165,13 @@ You can also define commands using markdown files. Place them in:
 Global: ~/.config/opencode/commands/
 Per-project: .opencode/commands/
 ~/.config/opencode/commands/test.md
+
 ---
+
 description: Run tests with coverage
 agent: build
 model: anthropic/claude-3-5-sonnet-20241022
+
 ---
 
 Run the full test suite with coverage report and show any failures.
@@ -181,10 +187,9 @@ The prompts for the custom commands support several special placeholders and syn
 Arguments
 Pass arguments to commands using the $ARGUMENTS placeholder.
 
-.opencode/commands/component.md
----
-description: Create a new component
----
+## .opencode/commands/component.md
+
+## description: Create a new component
 
 Create a new React component named $ARGUMENTS with TypeScript support.
 Include proper typing and basic structure.
@@ -203,10 +208,9 @@ $3 - Third argument
 And so on…
 For example:
 
-.opencode/commands/create-file.md
----
-description: Create a new file with content
----
+## .opencode/commands/create-file.md
+
+## description: Create a new file with content
 
 Create a file named $1 in the directory $2
 with the following content: $3
@@ -225,10 +229,9 @@ Use !command to inject bash command output into your prompt.
 
 For example, to create a custom command that analyzes test coverage:
 
-.opencode/commands/analyze-coverage.md
----
-description: Analyze test coverage
----
+## .opencode/commands/analyze-coverage.md
+
+## description: Analyze test coverage
 
 Here are the current test results:
 !`npm test`
@@ -237,10 +240,9 @@ Based on these results, suggest improvements to increase coverage.
 
 Or to review recent changes:
 
-.opencode/commands/review-changes.md
----
-description: Review recent changes
----
+## .opencode/commands/review-changes.md
+
+## description: Review recent changes
 
 Recent git commits:
 !`git log --oneline -10`
@@ -252,10 +254,9 @@ Commands run in your project’s root directory and theutput becomes part of the
 File references
 Include files in your command using @ followed by the filename.
 
-.opencode/commands/review-component.md
----
-description: Review component
----
+## .opencode/commands/review-component.md
+
+## description: Review component
 
 Review the component in @src/components/Button.tsx.
 Check for performance issues and suggest improvements.
@@ -270,11 +271,11 @@ The template option defines the prompt that will be sent to the LLM when the com
 
 opencode.json
 {
-  "command": {
-    "test": {
-      "template": "Run the full test suite with coverage report and show any failures.\nFocus on the failing tests and suggest fixes."
-    }
-  }
+"command": {
+"test": {
+"template": "Run the full test suite with coverage report and show any failures.\nFocus on the failing tests and suggest fixes."
+}
+}
 }
 
 This is a required config option.
@@ -284,11 +285,11 @@ Use the description option to provide a brief description of what the command do
 
 opencode.json
 {
-  "command": {
-    "test": {
-      "description": "Run tests with coverage"
-    }
-  }
+"command": {
+"test": {
+"description": "Run tests with coverage"
+}
+}
 }
 
 This is shown as the description in the TUI when you type ithe command.
@@ -298,11 +299,11 @@ Use the agent config to optionally specify which agent should execute this comma
 
 opencode.json
 {
-  "command": {
-    "review": {
-      "agent": "plan"
-    }
-  }
+"command": {
+"review": {
+"agent": "plan"
+}
+}
 }
 
 This is an optional config option. If not specified, defaults to your current agent.
@@ -312,11 +313,11 @@ Use the subtask boolean to force the command to trigger a subagent invocation. T
 
 opencode.json
 {
-  "command": {
-    "analyze": {
-      "subtask": true
-    }
-  }
+"command": {
+"analyze": {
+"subtask": true
+}
+}
 }
 
 This is an optional config option.
@@ -326,11 +327,11 @@ Use the model config to override the default model for this command.
 
 opencode.json
 {
-  "command": {
-    "analyze": {
-      "model": "anthropic/claude-3-5-sonnet-20241022"
-    }
-  }
+"command": {
+"analyze": {
+"model": "anthropic/claude-3-5-sonnet-20241022"
+}
+}
 }
 
 This is an optional config option.

@@ -16,6 +16,7 @@ You are the Tool Enhancement Specialist. Your focus is pagination support and AP
 
 **Update:** `src/tools/files.ts` - `list_files`
 Add parameters:
+
 - `page` (optional, default 1)
 - `per_page` (optional, default 100, max 1000)
 
@@ -30,6 +31,7 @@ Add pagination parameters
 ### Task 2: Standardize API Version Usage (Phase 3.5)
 
 **Create:** `src/constants.ts`
+
 ```typescript
 export const API_ENDPOINTS = {
   // v2 endpoints (older, more stable)
@@ -53,11 +55,13 @@ export const API_ENDPOINTS = {
 **Update:** All tool files to use constants
 
 ## Coordination Notes
+
 - ⚠️ **DEPENDENCY**: Wait for Core Infrastructure Agent (Agent 1) to finish type safety work
 - You will be modifying many of the same files as Agent 1
 - Files to coordinate on: `src/tools/files.ts`, `src/tools/repos.ts`, `src/tools/search.ts`
 
 ## Success Criteria
+
 - [ ] Pagination parameters added to list operations
 - [ ] `src/constants.ts` created with API endpoint definitions
 - [ ] All tools updated to use constants
@@ -65,6 +69,7 @@ export const API_ENDPOINTS = {
 - [ ] `npm run typecheck` passes
 
 ## Commands to Verify
+
 ```bash
 npm run typecheck
 npm run build

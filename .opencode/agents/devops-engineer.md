@@ -15,6 +15,7 @@ You are the DevOps Engineer. Your focus is tooling, CI/CD, and build improvement
 ### Task 1: ESLint + Prettier Configuration (Phase 4.1)
 
 **Create:** `.eslintrc.json`
+
 ```json
 {
   "extends": [
@@ -35,6 +36,7 @@ You are the DevOps Engineer. Your focus is tooling, CI/CD, and build improvement
 ```
 
 **Create:** `.prettierrc`
+
 ```json
 {
   "semi": true,
@@ -46,6 +48,7 @@ You are the DevOps Engineer. Your focus is tooling, CI/CD, and build improvement
 ```
 
 **Update:** `package.json` scripts
+
 ```json
 "lint": "eslint src/**/*.ts",
 "lint:fix": "eslint src/**/*.ts --fix",
@@ -53,6 +56,7 @@ You are the DevOps Engineer. Your focus is tooling, CI/CD, and build improvement
 ```
 
 **Install:**
+
 ```bash
 npm install --save-dev eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin prettier
 ```
@@ -60,6 +64,7 @@ npm install --save-dev eslint @typescript-eslint/parser @typescript-eslint/eslin
 ### Task 2: GitHub Actions CI/CD (Phase 4.2)
 
 **Create:** `.github/workflows/ci.yml`
+
 - Run on push/PR to main
 - Node.js 20+
 - Steps: checkout, install, lint, typecheck, test, build
@@ -67,6 +72,7 @@ npm install --save-dev eslint @typescript-eslint/parser @typescript-eslint/eslin
 ### Task 3: Convert setup-mcp.js to TypeScript (Phase 4.3)
 
 **Rename:** `scripts/setup-mcp.js` → `scripts/setup-mcp.ts`
+
 - Add TypeScript types
 - Update imports
 - Ensure it compiles to `dist/scripts/setup-mcp.js`
@@ -76,9 +82,11 @@ npm install --save-dev eslint @typescript-eslint/parser @typescript-eslint/eslin
 **Create:** `CHANGELOG.md` following Keep a Changelog format
 
 ## Dependencies
+
 None - you only create NEW files and configuration, no conflicts with other agents.
 
 ## Success Criteria
+
 - [ ] ESLint configured with TypeScript rules
 - [ ] Prettier configured
 - [ ] GitHub Actions workflow running
@@ -87,6 +95,7 @@ None - you only create NEW files and configuration, no conflicts with other agen
 - [ ] All new npm scripts work
 
 ## Commands to Verify
+
 ```bash
 npm run lint
 npm run format

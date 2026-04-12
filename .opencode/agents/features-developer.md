@@ -17,11 +17,13 @@ You are the Features Developer. Your focus is new MCP features - prompts and bat
 **Create:** `src/prompts.ts`
 
 Implement these prompts:
+
 1. `file_search_prompt` - Guides user to search for files
 2. `upload_workflow_prompt` - Step-by-step upload guide
 3. `share_item_prompt` - Helps user share files/folders
 
 **Example:**
+
 ```typescript
 server.registerPrompt(
   'file_search',
@@ -31,13 +33,15 @@ server.registerPrompt(
     location: z.string().optional().describe('Which repo to search?'),
   },
   ({ query, location }) => ({
-    messages: [{
-      role: 'user',
-      content: {
-        type: 'text',
-        text: `Search for "${query}"${location ? ` in ${location}` : ''}`
-      }
-    }]
+    messages: [
+      {
+        role: 'user',
+        content: {
+          type: 'text',
+          text: `Search for "${query}"${location ? ` in ${location}` : ''}`,
+        },
+      },
+    ],
   })
 );
 ```
@@ -49,23 +53,25 @@ server.registerPrompt(
 **Create:** `src/tools/batch.ts`
 
 Implement:
+
 1. `batch_delete` - Delete multiple items
 2. `batch_copy` - Copy multiple items
 3. `batch_move` - Move multiple items
 
 **Use Promise.allSettled** for parallel execution:
+
 ```typescript
-const results = await Promise.allSettled(
-  items.map(item => deleteItem(item))
-);
+const results = await Promise.allSettled(items.map(item => deleteItem(item)));
 ```
 
 **Register in:** `src/index.ts`
 
 ## Dependencies
+
 None - you can start immediately. You only create NEW files, no conflicts.
 
 ## Success Criteria
+
 - [ ] `src/prompts.ts` created with 3+ useful prompts
 - [ ] `src/tools/batch.ts` created with 3 batch operations
 - [ ] All operations use Promise.allSettled for parallel execution
@@ -73,6 +79,7 @@ None - you can start immediately. You only create NEW files, no conflicts.
 - [ ] `npm run typecheck` passes
 
 ## Commands to Verify
+
 ```bash
 npm run typecheck
 npm run build

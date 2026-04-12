@@ -5,9 +5,7 @@
     "createdAt": 1775975204946,
     "preset": "starter"
   },
-  "authorizedRoots": [
-    "/Users/chris/Documents/OpenCode/SeafileMCP"
-  ],
+  "authorizedRoots": ["/Users/chris/Documents/OpenCode/SeafileMCP"],
   "blueprint": {
     "emptyState": {
       "title": "What do you want to do?",

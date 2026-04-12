@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { validatePath, validateRepoId, validateContentSize, validateEmail } from '../src/utils/validation.js';
+import { validatePath, validateRepoId, validateContentSize, validateEmail } from '../validation.js';
 
 describe('validatePath', () => {
   it('should normalize paths', () => {
@@ -54,8 +54,7 @@ describe('validateContentSize', () => {
 
   it('should reject content exceeding max size', () => {
     const largeContent = 'x'.repeat(101 * 1024 * 1024); // 101MB
-    expect(() => validateContentSize(largeContent, 100 * 1024 * 1024))
-      .toThrow('exceeds maximum');
+    expect(() => validateContentSize(largeContent, 100 * 1024 * 1024)).toThrow('exceeds maximum');
   });
 
   it('should accept content within limit', () => {

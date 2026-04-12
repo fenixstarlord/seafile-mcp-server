@@ -96,10 +96,10 @@ Add the following (adjust path to your install directory):
       "command": ["node", "/home/username/.local/share/seafile-mcp-server/dist/index.js"],
       "environment": {
         "SEAFILE_URL": "{env:SEAFILE_URL}",
-        "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}"
-      }
-    }
-  }
+        "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}",
+      },
+    },
+  },
 }
 ```
 
@@ -143,6 +143,7 @@ Add the following (replace values with your actual credentials):
 After installation, the following MCP tools are available:
 
 ### File Operations
+
 - `list_files` — List files in a directory
 - `get_file` — Get file download link
 - `get_file_detail` — Get file metadata
@@ -150,6 +151,7 @@ After installation, the following MCP tools are available:
 - `delete_file` — Delete a file (destructive)
 
 ### Directory Operations
+
 - `create_folder` — Create a new directory
 - `delete_folder` — Delete a directory (destructive)
 - `rename_item` — Rename a file or folder
@@ -157,15 +159,18 @@ After installation, the following MCP tools are available:
 - `copy_item` — Copy a file or folder
 
 ### Repository Operations
+
 - `list_repos` — List all accessible repositories
 - `get_repo_info` — Get repository information
 - `create_repo` — Create a new library
 - `delete_repo` — Delete a library (destructive)
 
 ### Search
+
 - `search_files` — Search for files by name
 
 ### Sharing
+
 - `create_share_link` — Create a public share link
 - `list_share_links` — List share links
 - `delete_share_link` — Delete a share link (destructive)
@@ -173,11 +178,13 @@ After installation, the following MCP tools are available:
 - `list_shared` — List shared items
 
 ### Starred Items
+
 - `list_starred` — List all starred items
 - `star_item` — Star a file or folder
 - `unstar_item` — Remove a star
 
 ### Account
+
 - `get_server_info` — Get Seafile server info
 - `get_account_info` — Get authenticated user info
 

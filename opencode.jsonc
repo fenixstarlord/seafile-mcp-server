@@ -3,22 +3,14 @@
   "default_agent": "openwork",
   "mcp": {
     "chrome-devtools": {
-      "command": [
-        "npx",
-        "-y",
-        "chrome-devtools-mcp@latest"
-      ],
-      "type": "local"
+      "command": ["npx", "-y", "chrome-devtools-mcp@latest"],
+      "type": "local",
     },
     "control-chrome": {
-      "command": [
-        "chrome-devtools-mcp"
-      ],
-      "type": "local"
-    }
+      "command": ["chrome-devtools-mcp"],
+      "type": "local",
+    },
   },
-  "plugin": [
-    "opencode-scheduler"
-  ],
-  "model": "openrouter/z-ai/glm-5.1"
+  "plugin": ["opencode-scheduler"],
+  "model": "openrouter/z-ai/glm-5.1",
 }
