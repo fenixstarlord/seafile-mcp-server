@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "seafile": {
+      "type": "local",
+      "command": ["node", "/path/to/seafile-mcp-server/dist/index.js"],
+      "environment": {
+        "SEAFILE_URL": "{env:SEAFILE_URL}",
+        "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}"
+      }
+    }
+  }
+}

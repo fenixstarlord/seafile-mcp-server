@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "seafile": {
+      "command": "node",
+      "args": ["/path/to/seafile-mcp-server/dist/index.js"],
+      "env": {
+        "SEAFILE_URL": "https://your-seafile-server.com",
+        "SEAFILE_TOKEN": "your-api-token-here"
+      }
+    }
+  }
+}

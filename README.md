@@ -4,6 +4,7 @@ An MCP (Model Context Protocol) server for integrating Seafile cloud storage wit
 
 ## Documentation
 
+- **[Deployment Guide](./DEPLOYMENT.md)** — Install and configure for OpenCode/Claude Code
 - [Development Spec](./docs/spec.md) — Full development specification
 - [MCP Documentation](./docs/MCP-DOCUMENTATION.md) — OpenWork MCP setup guide
 - [Seafile API Reference](./docs/seafile-api-reference.md) — Complete Seafile API v13.0 reference
