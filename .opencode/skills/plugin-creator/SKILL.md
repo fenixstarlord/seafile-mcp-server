@@ -6,11 +6,14 @@ description: Create OpenCode plugins and know where to load them.
 ## Quick Usage (Already Configured)
 
 ### Where plugins live
+
 - Project plugins: `.opencode/plugins/*.js` or `.opencode/plugins/*.ts`
 - Global plugins: `~/.config/opencode/plugins/*.js` or `.ts`
 
 ### Load from npm
+
 Add npm plugin packages in `opencode.json`:
+
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
@@ -24,8 +27,8 @@ Add npm plugin packages in `opencode.json`:
 export const MyPlugin = async ({ project, client, $, directory, worktree }) => {
   return {
     // Hook implementations go here
-  }
-}
+  };
+};
 ```
 
 ## Notes from OpenCode docs

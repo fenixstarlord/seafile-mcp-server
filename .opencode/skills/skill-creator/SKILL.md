@@ -8,6 +8,7 @@ Skill creator helps create other skills that are self-buildable.
 The best way to use it is after a user already executed a flow and says: create a skill for this. Alternatively, if the user asks for a skill to be created, suggest they do the task first and ask for skill creation at the end.
 
 This should trigger this scaffold:
+
 - If the user needed to configure things, create a `.env.example` without credentials and include all required variables.
 - Ask the user if they want to store credentials. If yes, write them to a `.env` file in the skill, and suggest rotating keys later.
 - Always add a `.gitignore` in the skill that ignores `.env`, and verify `.env` is not tracked.
@@ -28,6 +29,7 @@ Good examples:
 "Triggers on: 'rotate PDF', 'flip PDF pages', 'change PDF orientation'"
 
 Quick validation:
+
 - Contains at least one quoted phrase
 - Uses "when" or "triggers"
 - Longer than ~50 characters
@@ -50,11 +52,13 @@ description: |
 ## Quick Usage (Already Configured)
 
 ### Create a new skill folder
+
 ```bash
 mkdir -p .opencode/skills/<skill-name>
 ```
 
 ### Minimum scaffold files
+
 - `SKILL.md`
 - `scripts/`
 - `.env`
@@ -68,7 +72,7 @@ mkdir -p .opencode/skills/<skill-name>
 
 ## Minimal skill template
 
-```markdown
+````markdown
 ---
 name: skill-name
 description: One-line description
@@ -77,9 +81,11 @@ description: One-line description
 ## Quick Usage (Already Configured)
 
 ### Action 1
+
 ```bash
 command here
 ```
+````
 
 ## Common Gotchas
 
@@ -88,6 +94,7 @@ command here
 ## First-Time Setup (If Not Configured)
 
 1. ...
+
 ```
 
 ## Notes from OpenCode docs
@@ -99,3 +106,4 @@ command here
 ## Reference
 
 Follow the official OpenCode skills docs: https://opencode.ai/docs/skills/
+```

@@ -1,6 +1,34 @@
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { seafileRequest } from '../seafile.js';
+import { API_ENDPOINTS } from '../constants.js';
 
-export function registerAccountTools(server: any) {
+/**
+ * Registers account-related tools with the MCP server
+ *
+ * Provides tools for retrieving account and server information:
+ * - get_server_info: Get Seafile server version and configuration
+ * - get_account_info: Get authenticated user's account information
+ *
+ * @param server - The MCP server instance to register tools with
+ *
+ * @example
+ * ```typescript
+ * import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+ * import { registerAccountTools } from './tools/account.js';
+ *
+ * const server = new McpServer({ name: 'seafile-mcp', version: '1.0.0' });
+ * registerAccountTools(server);
+ * ```
+ */
+export function registerAccountTools(server: McpServer) {
+  /**
+   * Tool: get_server_info
+   *
+   * Retrieves Seafile server version and configuration information.
+   * This endpoint does not require authentication.
+   *
+   * @returns Object containing server version, features, and configuration
+   */
   server.registerTool(
     'get_server_info',
     {
@@ -9,25 +37,37 @@ export function registerAccountTools(server: any) {
       annotations: { readOnlyHint: true },
     },
     async () => {
-      const info = await seafileRequest<Record<string, unknown>>('/api2/server-info/');
+      const info = await seafileRequest<Record<string, unknown>>(
+        `${API_ENDPOINTS.V2.SERVER_INFO}/`
+      );
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(info, null, 2) }],
       };
-    },
+    }
   );
 
+  /**
+   * Tool: get_account_info
+   *
+   * Retrieves information about the currently authenticated user,
+   * including name, email, and storage quota.
+   *
+   * @returns Object containing user account details
+   */
   server.registerTool(
     'get_account_info',
     {
-      description: 'Get the authenticated user\'s account information',
+      description: "Get the authenticated user's account information",
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
     async () => {
-      const info = await seafileRequest<Record<string, unknown>>('/api2/account/info/');
+      const info = await seafileRequest<Record<string, unknown>>(
+        `${API_ENDPOINTS.V2.ACCOUNT_INFO}/`
+      );
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(info, null, 2) }],
       };
-    },
+    }
   );
 }

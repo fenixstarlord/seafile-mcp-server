@@ -29,31 +29,31 @@ OpenWork supports MCP servers through its configuration system. MCP servers are 
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
     "seafile": {
-      "type": "local",  // or "remote" for HTTP servers
+      "type": "local", // or "remote" for HTTP servers
       "command": ["npx", "-y", "seafile-mcp-server"],
       "enabled": true,
       "environment": {
         "SEAFILE_URL": "{env:SEAFILE_URL}",
-        "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}"
+        "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}",
       },
-      "timeout": 5000
-    }
-  }
+      "timeout": 5000,
+    },
+  },
 }
 ```
 
 ### MCP Server Options
 
-| Option | Type | Required | Description |
-|--------|------|----------|-------------|
-| `type` | String | Yes | `"local"` or `"remote"` |
-| `command` | Array | Yes (local) | Command and arguments to run the MCP server |
-| `url` | String | Yes (remote) | URL of the remote MCP server |
-| `enabled` | Boolean | No | Enable/disable on startup |
-| `environment` | Object | No | Environment variables for local servers |
-| `headers` | Object | No | Headers for remote servers |
-| `oauth` | Object | No | OAuth configuration |
-| `timeout` | Number | No | Timeout in ms (default: 5000) |
+| Option        | Type    | Required     | Description                                 |
+| ------------- | ------- | ------------ | ------------------------------------------- |
+| `type`        | String  | Yes          | `"local"` or `"remote"`                     |
+| `command`     | Array   | Yes (local)  | Command and arguments to run the MCP server |
+| `url`         | String  | Yes (remote) | URL of the remote MCP server                |
+| `enabled`     | Boolean | No           | Enable/disable on startup                   |
+| `environment` | Object  | No           | Environment variables for local servers     |
+| `headers`     | Object  | No           | Headers for remote servers                  |
+| `oauth`       | Object  | No           | OAuth configuration                         |
+| `timeout`     | Number  | No           | Timeout in ms (default: 5000)               |
 
 ### OpenWork Plugin System (Advanced)
 
@@ -70,9 +70,9 @@ export const SeafilePlugin = async ({ project, client, $, directory, worktree })
     // Hook implementations for event-driven behavior
     tool: {
       // Custom tools can be added here
-    }
-  }
-}
+    },
+  };
+};
 ```
 
 ---
@@ -95,11 +95,11 @@ MCP servers can provide three main types of capabilities:
 
 ### Transport Methods
 
-| Transport | Use Case | Description |
-|-----------|----------|-------------|
-| **Stdio** | Local servers | Standard input/output communication |
-| **Streamable HTTP** | Remote servers | HTTP-based with streaming support |
-| **SSE** | Legacy | Server-Sent Events (deprecated) |
+| Transport           | Use Case       | Description                         |
+| ------------------- | -------------- | ----------------------------------- |
+| **Stdio**           | Local servers  | Standard input/output communication |
+| **Streamable HTTP** | Remote servers | HTTP-based with streaming support   |
+| **SSE**             | Legacy         | Server-Sent Events (deprecated)     |
 
 For OpenWork, both local (stdio) and remote (HTTP) servers are supported.
 
@@ -127,7 +127,7 @@ import { z } from 'zod';
 
 const server = new McpServer({
   name: 'seafile-mcp',
-  version: '1.0.0'
+  version: '1.0.0',
 });
 
 // Register a tool
@@ -137,8 +137,8 @@ server.registerTool(
     description: 'List files in a Seafile directory',
     inputSchema: {
       repoId: z.string(),
-      path: z.string().optional().default('/')
-    }
+      path: z.string().optional().default('/'),
+    },
   },
   async ({ repoId, path }) => {
     // Tool implementation
@@ -166,7 +166,9 @@ const server = new McpServer({ name: 'seafile-mcp', version: '1.0.0' });
 
 const transport = new StreamableHTTPServerTransport({
   port: 3000,
-  onSessionEnd: (session) => { /* cleanup */ }
+  onSessionEnd: session => {
+    /* cleanup */
+  },
 });
 
 await server.connect(transport);
@@ -229,6 +231,7 @@ npx @modelcontextprotocol/inspector python server.py
 For the complete Seafile API documentation, see: [Seafile API Reference](./seafile-api-reference.md)
 
 This comprehensive reference includes:
+
 - **Authentication** - Account-Token and Repo-Token authentication
 - **User Operations** - Account, Files, Directories, Search, Sharing, Groups
 - **Admin Operations** - User management, Organizations, Logs
@@ -242,11 +245,13 @@ This comprehensive reference includes:
 ### Option 1: TypeScript Server (Recommended)
 
 **Pros:**
+
 - Native MCP SDK with full feature support
 - Type-safe implementation
 - Works well with OpenWork's Node.js ecosystem
 
 **Steps:**
+
 1. Create project with `npx @agentailor/create-mcp-server --name=seafile-mcp`
 2. Implement Seafile API client
 3. Register tools for common operations
@@ -256,11 +261,13 @@ This comprehensive reference includes:
 ### Option 2: Python Server
 
 **Pros:**
+
 - Simpler code for rapid prototyping
 - Good for data-focused tools
 - FastMCP provides quick setup
 
 **Steps:**
+
 1. Create project with `uv init seafile-mcp`
 2. Install dependencies with `uv add "mcp[cli] httpx"`
 3. Implement FastMCP server
@@ -299,10 +306,10 @@ SEAFILE_REPO_ID=default_repo_id  # optional
       "command": ["npx", "seafile-mcp-server"],
       "environment": {
         "SEAFILE_URL": "{env:SEAFILE_URL}",
-        "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}"
-      }
-    }
-  }
+        "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}",
+      },
+    },
+  },
 }
 ```
 
@@ -315,10 +322,10 @@ Or for a remote server:
       "type": "remote",
       "url": "https://your-seafile-mcp-server.com/mcp",
       "headers": {
-        "Authorization": "Bearer {env:SEAFILE_MCP_TOKEN}"
-      }
-    }
-  }
+        "Authorization": "Bearer {env:SEAFILE_MCP_TOKEN}",
+      },
+    },
+  },
 }
 ```
 
@@ -327,9 +334,11 @@ Or for a remote server:
 ## Resources
 
 ### Local Documentation
+
 - [Seafile API Reference](./seafile-api-reference.md) - Complete Seafile API v13.0 documentation
 
 ### External References
+
 - [OpenWork/OpenCode Documentation](https://opencode.ai/docs/)
 - [MCP Protocol Specification](https://modelcontextprotocol.io/)
 - [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)

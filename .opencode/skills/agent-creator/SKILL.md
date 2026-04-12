@@ -6,11 +6,13 @@ description: Create new OpenCode agents with a gpt-5.2-codex default.
 ## Quick Usage (Already Configured)
 
 ### Create a project agent
+
 ```bash
 opencode agent create
 ```
 
 ### Agent file locations
+
 - Project agents: `.opencode/agents/<name>.md`
 - Global agents: `~/.config/opencode/agents/<name>.md`
 
@@ -30,6 +32,7 @@ tools:
   edit: false
   bash: false
 ---
+
 You are a specialized agent. Describe your task, boundaries, and expected output.
 ```
 

@@ -52,11 +52,14 @@ Every tool wraps its API call and produces an actionable error:
 ```typescript
 throw new Error(
   `Failed to list files in repo ${repo_id} at path "${path}": ` +
-  `${response.status} ${response.statusText}. ` +
-  (response.status === 401 ? 'Check SEAFILE_TOKEN is valid.' :
-   response.status === 404 ? 'Verify repo_id and path exist.' :
-   response.status === 403 ? 'Token lacks permission for this repo.' :
-   'Check the Seafile server URL and try again.')
+    `${response.status} ${response.statusText}. ` +
+    (response.status === 401
+      ? 'Check SEAFILE_TOKEN is valid.'
+      : response.status === 404
+        ? 'Verify repo_id and path exist.'
+        : response.status === 403
+          ? 'Token lacks permission for this repo.'
+          : 'Check the Seafile server URL and try again.')
 );
 ```
 
@@ -73,22 +76,22 @@ return {
 
 All tools include appropriate annotations:
 
-| Category | Annotations |
-|----------|-------------|
-| Read operations (list_*, get_*, search_*) | `{ readOnlyHint: true }` |
-| Create operations (create_*, upload_*) | `{ idempotentHint: false }` |
-| Delete operations (delete_*) | `{ destructiveHint: true }` |
-| Move/copy (move_*, copy_*) | `{ idempotentHint: false }` |
-| Share operations | `{ readOnlyHint: false }` |
+| Category                                    | Annotations                 |
+| ------------------------------------------- | --------------------------- |
+| Read operations (list*\*, get*_, search\__) | `{ readOnlyHint: true }`    |
+| Create operations (create*\*, upload*\*)    | `{ idempotentHint: false }` |
+| Delete operations (delete\_\*)              | `{ destructiveHint: true }` |
+| Move/copy (move*\*, copy*\*)                | `{ idempotentHint: false }` |
+| Share operations                            | `{ readOnlyHint: false }`   |
 
 ---
 
 ## 3. Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SEAFILE_URL` | Yes | Base URL of the Seafile server (e.g. `https://seafile.example.com`) |
-| `SEAFILE_TOKEN` | Yes | Account-Token for API authentication |
+| Variable        | Required | Description                                                         |
+| --------------- | -------- | ------------------------------------------------------------------- |
+| `SEAFILE_URL`   | Yes      | Base URL of the Seafile server (e.g. `https://seafile.example.com`) |
+| `SEAFILE_TOKEN` | Yes      | Account-Token for API authentication                                |
 
 ---
 
@@ -96,37 +99,41 @@ All tools include appropriate annotations:
 
 ### 4.1 Existing Tools — Fixes Required
 
-| Tool | Issue | Fix |
-|------|-------|-----|
-| `list_repos` | Missing `readOnlyHint` annotation | Add annotation |
-| `list_files` | Missing `readOnlyHint` annotation | Add annotation |
-| `get_file` | Missing `readOnlyHint` annotation | Add annotation |
-| `upload_file` | Missing `idempotentHint` annotation | Add annotation |
-| `create_folder` | Missing annotation | Add `idempotentHint: false` |
-| `get_repo_info` | Missing `readOnlyHint` annotation | Add annotation |
-| All tools | Generic error messages | Update `seafileRequest` to include endpoint context |
+| Tool            | Issue                               | Fix                                                 |
+| --------------- | ----------------------------------- | --------------------------------------------------- |
+| `list_repos`    | Missing `readOnlyHint` annotation   | Add annotation                                      |
+| `list_files`    | Missing `readOnlyHint` annotation   | Add annotation                                      |
+| `get_file`      | Missing `readOnlyHint` annotation   | Add annotation                                      |
+| `upload_file`   | Missing `idempotentHint` annotation | Add annotation                                      |
+| `create_folder` | Missing annotation                  | Add `idempotentHint: false`                         |
+| `get_repo_info` | Missing `readOnlyHint` annotation   | Add annotation                                      |
+| All tools       | Generic error messages              | Update `seafileRequest` to include endpoint context |
 
 ### 4.2 New Tools — High Priority
 
 #### `delete_file`
+
 - **Endpoint:** `DELETE /api/v2.1/repos/{repo_id}/file/`
 - **Params:** `repo_id` (string), `path` (string)
 - **Annotation:** `{ destructiveHint: true }`
 - **Behavior:** Delete a single file. Returns success confirmation.
 
 #### `delete_folder`
+
 - **Endpoint:** `DELETE /api2/repos/{repo_id}/dir/`
 - **Params:** `repo_id` (string), `path` (string)
 - **Annotation:** `{ destructiveHint: true }`
 - **Behavior:** Delete a directory. Returns success confirmation.
 
 #### `search_files`
+
 - **Endpoint:** `GET /api/v2.1/search/file/`
 - **Params:** `query` (string), `repo_id` (string, optional), `search_path` (string, optional)
 - **Annotation:** `{ readOnlyHint: true }`
 - **Behavior:** Search for files by name within a library. If `repo_id` is provided, scope to that library.
 
 #### `create_share_link`
+
 - **Endpoint:** `POST /api/v2.1/share-links/`
 - **Params:** `repo_id` (string), `path` (string), `password` (string, optional), `expire_days` (number, optional)
 - **Annotation:** `{ idempotentHint: false }`
@@ -135,39 +142,43 @@ All tools include appropriate annotations:
 ### 4.3 New Tools — Medium Priority
 
 #### `move_file`
+
 - **Endpoint:** `POST /api/v2.1/repos/{repo_id}/file/` (operation=move)
 - **Params:** `repo_id` (string), `path` (string), `destination_path` (string), `target_repo_id` (string, optional)
 - **Annotation:** `{ idempotentHint: false }`
 
 #### `copy_file`
+
 - **Endpoint:** `POST /api/v2.1/repos/{repo_id}/file/` (operation=copy)
 - **Params:** `repo_id` (string), `path` (string), `destination_path` (string), `target_repo_id` (string, optional)
 - **Annotation:** `{ idempotentHint: false }`
 
 #### `rename_item`
+
 - **Endpoint:** `POST /api/v2.1/repos/{repo_id}/file/` or `POST /api2/repos/{repo_id}/dir/` (operation=rename)
 - **Params:** `repo_id` (string), `path` (string), `new_name` (string), `type` (enum: `file` | `dir`)
 - **Annotation:** `{ idempotentHint: false }`
 
 #### `list_shared`
+
 - **Endpoint:** `GET /api2/beshared-repos/` (shared to me) + `GET /api/v2.1/shared-folders/` (shared folders)
 - **Params:** `repo_id` (string, optional), `path` (string, optional)
 - **Annotation:** `{ readOnlyHint: true }`
 
 ### 4.4 New Tools — Lower Priority
 
-| Tool | Endpoint | Description |
-|------|----------|-------------|
-| `get_file_detail` | `GET /api2/repos/{repo_id}/file/detail/` | Get file metadata (size, last modified) |
-| `get_file_history` | `GET /api/v2.1/repos/{repo_id}/file/history/` | Get file revision history |
-| `lock_file` | `PUT /api/v2.1/repos/{repo_id}/file/` | Lock/unlock file for editing |
-| `star_item` | `POST /api/v2.1/starred-items/` | Star a file/folder |
-| `unstar_item` | `DELETE /api/v2.1/starred-items/` | Unstar a file/folder |
-| `list_starred` | `GET /api/v2.1/starred-items/` | List starred items |
-| `get_server_info` | `GET /api2/server-info/` | Get Seafile server info |
-| `get_account_info` | `GET /api2/account/info/` | Get authenticated user info |
-| `create_repo` | `POST /api2/repos/` | Create a new library |
-| `delete_repo` | `DELETE /api2/repos/{repo_id}/` | Delete a library |
+| Tool               | Endpoint                                      | Description                             |
+| ------------------ | --------------------------------------------- | --------------------------------------- |
+| `get_file_detail`  | `GET /api2/repos/{repo_id}/file/detail/`      | Get file metadata (size, last modified) |
+| `get_file_history` | `GET /api/v2.1/repos/{repo_id}/file/history/` | Get file revision history               |
+| `lock_file`        | `PUT /api/v2.1/repos/{repo_id}/file/`         | Lock/unlock file for editing            |
+| `star_item`        | `POST /api/v2.1/starred-items/`               | Star a file/folder                      |
+| `unstar_item`      | `DELETE /api/v2.1/starred-items/`             | Unstar a file/folder                    |
+| `list_starred`     | `GET /api/v2.1/starred-items/`                | List starred items                      |
+| `get_server_info`  | `GET /api2/server-info/`                      | Get Seafile server info                 |
+| `get_account_info` | `GET /api2/account/info/`                     | Get authenticated user info             |
+| `create_repo`      | `POST /api2/repos/`                           | Create a new library                    |
+| `delete_repo`      | `DELETE /api2/repos/{repo_id}/`               | Delete a library                        |
 
 ---
 
@@ -197,19 +208,19 @@ No prompts are currently registered. Future candidates:
 
 ## 7. Build & Development
 
-| Command | Description |
-|---------|-------------|
-| `npm run build` | Compile TypeScript to `dist/` |
-| `npm run dev` | Run with tsx (hot reload) |
-| `npm run start` | Run compiled server |
-| `npm run inspect` | Launch MCP Inspector |
+| Command           | Description                   |
+| ----------------- | ----------------------------- |
+| `npm run build`   | Compile TypeScript to `dist/` |
+| `npm run dev`     | Run with tsx (hot reload)     |
+| `npm run start`   | Run compiled server           |
+| `npm run inspect` | Launch MCP Inspector          |
 
 ### Missing Scripts (to add)
 
-| Command | Description |
-|---------|-------------|
+| Command             | Description        |
+| ------------------- | ------------------ |
 | `npm run typecheck` | Run `tsc --noEmit` |
-| `npm run lint` | Run eslint |
+| `npm run lint`      | Run eslint         |
 
 ---
 
