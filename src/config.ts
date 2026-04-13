@@ -3,7 +3,7 @@ import { z } from 'zod';
 /**
  * Configuration schema using Zod for environment variable validation
  * @property SEAFILE_URL - The Seafile server URL (must be a valid URL)
- * @property SEAFILE_TOKEN - The authentication token for Seafile API
+ * @property SEAFILE_TOKEN - The repo API token for Seafile library access
  */
 const ConfigSchema = z.object({
   SEAFILE_URL: z.string().url().min(1),

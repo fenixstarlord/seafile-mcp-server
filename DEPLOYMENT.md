@@ -2,26 +2,12 @@
 
 This guide covers installing and configuring the Seafile MCP Server for both OpenCode and Claude Code MCP clients.
 
-## Prerequisites
-
-- **Node.js 20+** — [Download from nodejs.org](https://nodejs.org/)
-- **Git** — For cloning the repository
-- **Seafile server** — A running Seafile instance with API access
-
 ## Quick Start
 
 ### macOS / Linux
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/user/seafile-mcp/main/install.sh | bash
-```
-
-Or manually:
-
-```bash
-git clone https://github.com/user/seafile-mcp-server.git
-cd seafile-mcp-server
-./install.sh
 ```
 
 ### Windows
@@ -31,13 +17,11 @@ cd seafile-mcp-server
 irm https://raw.githubusercontent.com/user/seafile-mcp/main/install.ps1 | iex
 ```
 
-Or manually:
+## Prerequisites
 
-```powershell
-git clone https://github.com/user/seafile-mcp-server.git
-cd seafile-mcp-server
-.\install.ps1
-```
+- **Node.js 20+** — [Download from nodejs.org](https://nodejs.org/)
+- **Git** — For cloning the repository
+- **Seafile server** — A running Seafile instance with API access
 
 ## What the Installer Does
 
@@ -46,7 +30,7 @@ cd seafile-mcp-server
 3. **Builds the server** — Runs `npm install && npm run build`
 4. **Prompts for configuration** — Asks for your Seafile server URL and API token
 5. **Creates `.env` file** — Stores your configuration securely
-6. **Configures MCP clients** — Optionally sets up OpenCode and/or Claude Code
+6. **Configures MCP clients** — Select OpenCode, Claude Code, or Both
 7. **Backups existing configs** — Before modifying any client configuration files
 
 ## Post-Installation
@@ -80,20 +64,14 @@ If automatic configuration fails, you can manually add the Seafile MCP server to
 
 ### OpenCode
 
-Edit your OpenCode configuration file:
-
-- **macOS**: `~/.config/opencode/opencode.jsonc`
-- **Linux**: `~/.config/opencode/opencode.jsonc`
-- **Windows**: `%APPDATA%\opencode\opencode.jsonc`
-
-Add the following (adjust path to your install directory):
+Edit `~/.config/opencode/opencode.jsonc` (macOS/Linux) or `%APPDATA%\opencode\opencode.jsonc` (Windows):
 
 ```jsonc
 {
   "mcp": {
     "seafile": {
       "type": "local",
-      "command": ["node", "/home/username/.local/share/seafile-mcp-server/dist/index.js"],
+      "command": ["node", "/path/to/seafile-mcp-server/dist/index.js"],
       "environment": {
         "SEAFILE_URL": "{env:SEAFILE_URL}",
         "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}",
@@ -103,24 +81,20 @@ Add the following (adjust path to your install directory):
 }
 ```
 
-> **Note**: The `{env:...}` syntax tells OpenCode to read these values from environment variables.
-
 ### Claude Code
 
-Edit your Claude Desktop configuration file:
+Edit your Claude Desktop config file:
 
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Linux**: `~/.config/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-Add the following (replace values with your actual credentials):
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Linux:** `~/.config/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
     "seafile": {
       "command": "node",
-      "args": ["/home/username/.local/share/seafile-mcp-server/dist/index.js"],
+      "args": ["/path/to/seafile-mcp-server/dist/index.js"],
       "env": {
         "SEAFILE_URL": "https://seafile.example.com",
         "SEAFILE_TOKEN": "your-api-token-here"
@@ -130,63 +104,17 @@ Add the following (replace values with your actual credentials):
 }
 ```
 
-## Getting Your Seafile API Token
+## Getting Your Seafile Repo Token
+
+Seafile uses repo-specific API tokens (not account tokens). To generate a repo token:
 
 1. Log into your Seafile web interface
-2. Click on your profile (top right)
-3. Go to **Settings** → **API Token** (or **Advanced** → **API Token** in older versions)
-4. Generate a new token
-5. Copy the token value
+2. Navigate to the library you want to access
+3. Right-click on the library name
+4. Select **Advanced** → **API Token**
+5. Generate and copy the token
 
-## Available Tools
-
-After installation, the following MCP tools are available:
-
-### File Operations
-
-- `list_files` — List files in a directory
-- `get_file` — Get file download link
-- `get_file_detail` — Get file metadata
-- `upload_file` — Upload a file
-- `delete_file` — Delete a file (destructive)
-
-### Directory Operations
-
-- `create_folder` — Create a new directory
-- `delete_folder` — Delete a directory (destructive)
-- `rename_item` — Rename a file or folder
-- `move_item` — Move a file or folder
-- `copy_item` — Copy a file or folder
-
-### Repository Operations
-
-- `list_repos` — List all accessible repositories
-- `get_repo_info` — Get repository information
-- `create_repo` — Create a new library
-- `delete_repo` — Delete a library (destructive)
-
-### Search
-
-- `search_files` — Search for files by name
-
-### Sharing
-
-- `create_share_link` — Create a public share link
-- `list_share_links` — List share links
-- `delete_share_link` — Delete a share link (destructive)
-- `share_to_user` — Share a library/folder with a user or group
-- `list_shared` — List shared items
-
-### Starred Items
-
-- `list_starred` — List all starred items
-- `star_item` — Star a file or folder
-- `unstar_item` — Remove a star
-
-### Account
-
-- `get_server_info` — Get Seafile server info
-- `get_account_info` — Get authenticated user info
+> **Note:** This token only works for the specific library you generated it from. If you need to access a different library, generate a new token for that library.
 
 ## Troubleshooting
 
@@ -200,8 +128,19 @@ After installation, the following MCP tools are available:
 
 1. **Restart the client**: Both OpenCode and Claude Desktop require a restart
 2. **Check config syntax**: Validate JSON with `python -m json.tool < config.json`
-3. **Check file paths**: Ensure the path to `dist/index.js` is correct
-4. **Check environment variables**: For OpenCode, ensure SEAFILE_URL and SEAFILE_TOKEN are set
+3. **Check file paths**: Ensure the path to `dist/src/index.js` is correct
+4. **Check environment variables**: For OpenCode, ensure SEAFILE_URL and SEAFILE_TOKEN are set in your shell
+
+### OpenCode MCP not picking up env vars
+
+OpenCode's `{env:VAR}` syntax reads from your shell environment, not from the `.env` file. After installation:
+
+```bash
+# Add to ~/.zshrc (or your shell's profile)
+source ~/.local/share/seafile-mcp-server/.env
+```
+
+Then restart OpenCode or run `source ~/.zshrc` before starting OpenCode.
 
 ### Connection Errors
 
@@ -231,26 +170,16 @@ Remove-Item -Recurse -Force "$env:LOCALAPPDATA\seafile-mcp-server"
 
 Then remove the seafile entry from your MCP client configuration files.
 
-## Project Structure
+## Documentation
 
-```
-~/.local/share/seafile-mcp-server/
-├── .env                    # Your credentials (never commit this)
-├── dist/                   # Compiled JavaScript
-├── src/                    # Source TypeScript
-│   ├── tools/              # Tool implementations
-│   ├── seafile.ts          # HTTP client
-│   ├── types.ts            # Shared types
-│   └── ...
-├── backups/                # Config backups
-└── package.json
-```
+For detailed documentation, see:
 
-## Support
-
-- **API Reference**: See `docs/seafile-api-reference.md`
-- **Development Spec**: See `docs/spec.md`
-- **MCP Documentation**: See `docs/MCP-DOCUMENTATION.md`
+| Document                                                         | Description                         |
+| ---------------------------------------------------------------- | ----------------------------------- |
+| [OPENCODE.md](./OPENCODE.md)                                     | OpenCode companion documentation    |
+| [CLAUDE.md](./CLAUDE.md)                                         | Claude Code companion documentation |
+| [docs/seafile-api-reference.md](./docs/seafile-api-reference.md) | Seafile API reference               |
+| [docs/spec.md](./docs/spec.md)                                   | Development specification           |
 
 ## License
 

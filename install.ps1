@@ -105,10 +105,28 @@ function Setup-Directories {
 function Clone-Or-Update-Repo {
     Print-Info "Installing Seafile MCP server..."
     
-    if (Test-Path (Join-Path $InstallDir ".git")) {
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    
+    if (Test-Path (Join-Path $scriptDir ".git") -and (Test-Path (Join-Path $scriptDir "package.json"))) {
+        Print-Info "Using local repository at $scriptDir"
+        
+        if ($scriptDir -ne $InstallDir -and (Test-Path $InstallDir)) {
+            Print-Info "Cleaning up existing install directory..."
+            Remove-Item -Recurse -Force $InstallDir
+        }
+        
+        if ($scriptDir -ne $InstallDir) {
+            $null = New-Item -ItemType Directory -Force -Path (Split-Path $InstallDir -Parent)
+            cmd /c "mklink /J `"$InstallDir`" `"$scriptDir`"" 2>$null
+        }
+        Set-Location $InstallDir
+    } elseif (Test-Path (Join-Path $InstallDir ".git")) {
         Print-Info "Existing installation found, updating..."
         Set-Location $InstallDir
         git pull --quiet
+    } elseif (Test-Path (Join-Path $InstallDir "package.json")) {
+        Print-Info "Using existing installation at $InstallDir"
+        Set-Location $InstallDir
     } else {
         $repoUrl = if ($env:REPO_URL) { $env:REPO_URL } else { "https://github.com/user/seafile-mcp-server.git" }
         git clone --quiet $repoUrl $InstallDir
@@ -133,20 +151,17 @@ function Prompt-For-Env {
     } while ([string]::IsNullOrWhiteSpace($seafileUrl))
     
     do {
-        $seafileToken = Read-Host "Enter your Seafile API token" -AsSecureString
-        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($seafileToken)
-        $tokenPlain = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+        $seafileToken = Read-Host "Enter your Seafile repo API token"
         
-        if ([string]::IsNullOrWhiteSpace($tokenPlain)) {
-            Print-Error "API token cannot be empty"
+        if ([string]::IsNullOrWhiteSpace($seafileToken)) {
+            Print-Error "Repo API token cannot be empty"
         }
-    } while ([string]::IsNullOrWhiteSpace($tokenPlain))
+    } while ([string]::IsNullOrWhiteSpace($seafileToken))
     
     # Save to .env
     $envContent = @"
 SEAFILE_URL=$seafileUrl
-SEAFILE_TOKEN=$tokenPlain
+SEAFILE_TOKEN=$seafileToken
 "@
     
     $envContent | Set-Content (Join-Path $InstallDir ".env") -Encoding UTF8
@@ -163,13 +178,37 @@ function Configure-Opencode {
     $escapedInstallDir = $InstallDir.Replace('\', '\\')
     
     try {
-        $result = node (Join-Path $InstallDir "scripts\setup-mcp.js") opencode "$InstallDir" "$OpencodeConfig"
+        Push-Location $InstallDir
+        npx -y tsx scripts/setup-mcp.ts opencode "$InstallDir" "$OpencodeConfig"
         if ($LASTEXITCODE -eq 0) {
             Print-Success "OpenCode configured successfully"
+            
+            Print-Info "Adding environment variables to PowerShell profile..."
+            
+            $shellProfile = $PROFILE
+            $envBlock = @"
+# Seafile MCP Server
+`$env:SEAFILE_URL = (Get-Content "$InstallDir\.env" | Select-String 'SEAFILE_URL=') -replace 'SEAFILE_URL=', ''
+`$env:SEAFILE_TOKEN = (Get-Content "$InstallDir\.env" | Select-String 'SEAFILE_TOKEN=') -replace 'SEAFILE_TOKEN=', ''
+"@
+            
+            if (-not (Test-Path $shellProfile)) {
+                New-Item -ItemType File -Path $shellProfile -Force | Out-Null
+            }
+            
+            if (-not (Select-String -Path $shellProfile -Pattern "SEAFILE_MCP_SERVER" -Quiet)) {
+                Add-Content -Path $shellProfile -Value "`n$envBlock"
+                Print-Success "Added env export to $shellProfile"
+                Print-Info "Run 'Reload-Profile' or restart your terminal to apply"
+            } else {
+                Print-Info "Env export already exists in $shellProfile"
+            }
         } else {
             throw "Setup script failed"
         }
+        Pop-Location
     } catch {
+        Pop-Location | Out-Null
         Print-Error "Failed to auto-configure OpenCode"
         Write-Host ""
         Print-Warning "Manual configuration required:"
@@ -179,7 +218,7 @@ function Configure-Opencode {
   "mcp": {
     "seafile": {
       "type": "local",
-      "command": ["node", "$escapedInstallDir\dist\index.js"],
+      "command": ["node", "$escapedInstallDir\dist\src\index.js"],
       "environment": {
         "SEAFILE_URL": "{env:SEAFILE_URL}",
         "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}"
@@ -196,20 +235,19 @@ function Configure-Opencode {
 function Configure-Claude {
     Print-Info "Configuring Claude Code..."
     
-    # Read values from .env for the snippet
-    $envContent = Get-Content (Join-Path $InstallDir ".env") -Raw
-    $seafileUrl = ($envContent | Select-String "SEAFILE_URL=(.+)") -replace "SEAFILE_URL=", "" -replace "`r`n", ""
-    $seafileToken = ($envContent | Select-String "SEAFILE_TOKEN=(.+)") -replace "SEAFILE_TOKEN=", "" -replace "`r`n", ""
     $escapedInstallDir = $InstallDir.Replace('\', '\\')
     
     try {
-        $result = node (Join-Path $InstallDir "scripts\setup-mcp.js") claude "$InstallDir" "$ClaudeConfig"
+        Push-Location $InstallDir
+        npx -y tsx scripts/setup-mcp.ts claude "$InstallDir" "$ClaudeConfig"
         if ($LASTEXITCODE -eq 0) {
             Print-Success "Claude Code configured successfully"
         } else {
             throw "Setup script failed"
         }
+        Pop-Location
     } catch {
+        Pop-Location | Out-Null
         Print-Error "Failed to auto-configure Claude Code"
         Write-Host ""
         Print-Warning "Manual configuration required:"
@@ -219,7 +257,7 @@ function Configure-Claude {
   "mcpServers": {
     "seafile": {
       "command": "node",
-      "args": ["$escapedInstallDir\dist\index.js"],
+      "args": ["$escapedInstallDir\dist\src\index.js"],
       "env": {
         "SEAFILE_URL": "$seafileUrl",
         "SEAFILE_TOKEN": "$seafileToken"
@@ -235,14 +273,21 @@ function Configure-Claude {
 
 function Ask-Config-Questions {
     Write-Host ""
-    $configureOpencode = Read-Host "Configure OpenCode MCP? [Y/n]"
-    if ($configureOpencode -ne 'n' -and $configureOpencode -ne 'N') {
-        Configure-Opencode
-    }
+    Write-Host "Which MCP client should be configured?"
+    Write-Host "  1. OpenCode MCP"
+    Write-Host "  2. Claude Code MCP"
+    Write-Host "  3. Both"
+    Write-Host ""
+    $choice = Read-Host "Enter choice [1-3]"
     
-    $configureClaude = Read-Host "Configure Claude Code MCP? [Y/n]"
-    if ($configureClaude -ne 'n' -and $configureClaude -ne 'N') {
-        Configure-Claude
+    switch ($choice) {
+        '1' { Configure-Opencode }
+        '2' { Configure-Claude }
+        '3' { 
+            Configure-Opencode
+            Configure-Claude
+        }
+        default { Print-Error "Invalid choice" }
     }
 }
 

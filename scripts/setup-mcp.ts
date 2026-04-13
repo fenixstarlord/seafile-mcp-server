@@ -85,7 +85,7 @@ function loadEnvFile(envPath: string): Record<string, string> {
 function setupOpencodeConfig(): boolean {
   const seafileEntry = {
     type: 'local',
-    command: ['node', path.join(INSTALL_DIR, 'dist', 'index.js')],
+    command: ['node', path.join(INSTALL_DIR, 'dist', 'src', 'index.js')],
     environment: {
       SEAFILE_URL: '{env:SEAFILE_URL}',
       SEAFILE_TOKEN: '{env:SEAFILE_TOKEN}',
@@ -138,7 +138,7 @@ function setupClaudeConfig(): boolean {
 
   const seafileEntry = {
     command: 'node',
-    args: [path.join(INSTALL_DIR, 'dist', 'index.js').replace(/\\/g, '/')],
+    args: [path.join(INSTALL_DIR, 'dist', 'src', 'index.js').replace(/\\/g, '/')],
     env: {
       SEAFILE_URL: env.SEAFILE_URL || '',
       SEAFILE_TOKEN: env.SEAFILE_TOKEN || '',

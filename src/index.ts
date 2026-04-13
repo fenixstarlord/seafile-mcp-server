@@ -22,7 +22,7 @@ import { logger } from './logger.js';
  *
  * Environment Variables Required:
  * - SEAFILE_URL: The URL of the Seafile server (e.g., https://seafile.example.com)
- * - SEAFILE_TOKEN: The authentication token for Seafile API access
+ * - SEAFILE_TOKEN: The repo API token for Seafile library access
  *
  * Environment Variables Optional:
  * - LOG_LEVEL: Logging level (debug, info, warn, error, fatal) - defaults to 'info'

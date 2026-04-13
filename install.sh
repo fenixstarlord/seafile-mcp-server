@@ -102,12 +102,42 @@ setup_directories() {
 clone_or_update_repo() {
     print_info "Installing Seafile MCP server..."
     
-    if [ -d "$INSTALL_DIR/.git" ]; then
+    # Check if we're running from a local clone (script dir has .git and package.json)
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -d "$SCRIPT_DIR/.git" ] && [ -f "$SCRIPT_DIR/package.json" ]; then
+        # Running from local clone - use local files
+        print_info "Using local repository at $SCRIPT_DIR"
+        
+        # If install dir exists and is different from script dir, handle it
+        if [ "$SCRIPT_DIR" != "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR" ]; then
+            print_info "Cleaning up existing install directory..."
+            rm -rf "$INSTALL_DIR"
+        fi
+        
+        if [ "$SCRIPT_DIR" != "$INSTALL_DIR" ]; then
+            mkdir -p "$(dirname "$INSTALL_DIR")"
+            ln -sf "$SCRIPT_DIR" "$INSTALL_DIR"
+        fi
+        cd "$INSTALL_DIR"
+    elif [ -d "$INSTALL_DIR/.git" ]; then
+        # Existing git installation - update
         print_info "Existing installation found, updating..."
         cd "$INSTALL_DIR"
         git pull --quiet
+    elif [ -d "$INSTALL_DIR" ]; then
+        # Non-git directory exists - check if usable
+        if [ -f "$INSTALL_DIR/package.json" ]; then
+            print_info "Using existing installation at $INSTALL_DIR"
+            cd "$INSTALL_DIR"
+        else
+            print_error "Installation directory exists but is not a git repo and has no package.json."
+            print_info "Please remove the directory and re-run installer, or run from a cloned repo."
+            exit 1
+        fi
     else
+        # Fresh clone
         REPO_URL="${REPO_URL:-https://github.com/user/seafile-mcp-server.git}"
+        mkdir -p "$(dirname "$INSTALL_DIR")"
         git clone --quiet "$REPO_URL" "$INSTALL_DIR"
         cd "$INSTALL_DIR"
     fi
@@ -128,11 +158,11 @@ prompt_for_env() {
         read -p "Enter your Seafile server URL: " SEAFILE_URL
     done
     
-    read -s -p "Enter your Seafile API token: " SEAFILE_TOKEN
+    read -p "Enter your Seafile repo API token: " SEAFILE_TOKEN
     echo ""
     while [[ -z "$SEAFILE_TOKEN" ]]; do
-        print_error "API token cannot be empty"
-        read -s -p "Enter your Seafile API token: " SEAFILE_TOKEN
+        print_error "Repo API token cannot be empty"
+        read -p "Enter your Seafile repo API token: " SEAFILE_TOKEN
         echo ""
     done
     
@@ -159,21 +189,35 @@ detect_claude_config_path() {
 configure_opencode() {
     print_info "Configuring OpenCode..."
     
-    local config_snippet="{
-  \"mcp\": {
-    \"seafile\": {
-      \"type\": \"local\",
-      \"command\": [\"node\", \"$INSTALL_DIR/dist/index.js\"],
-      \"environment\": {
-        \"SEAFILE_URL\": \"{env:SEAFILE_URL}\",
-        \"SEAFILE_TOKEN\": \"{env:SEAFILE_TOKEN}\"
-      }
-    }
-  }
-}"
-    
-    if node "$INSTALL_DIR/scripts/setup-mcp.js" opencode "$INSTALL_DIR" "$OPENCODE_CONFIG"; then
+    if cd "$INSTALL_DIR" && npx -y tsx scripts/setup-mcp.ts opencode "$INSTALL_DIR" "$OPENCODE_CONFIG"; then
         print_success "OpenCode configured successfully"
+        
+        # Add env export to shell profile for OpenCode MCP
+        print_info "Adding environment variables to shell profile..."
+        
+        local shell_profile=""
+        if [ -f "$HOME/.zshrc" ]; then
+            shell_profile="$HOME/.zshrc"
+        elif [ -f "$HOME/.bashrc" ]; then
+            shell_profile="$HOME/.bashrc"
+        elif [ -f "$HOME/.bash_profile" ]; then
+            shell_profile="$HOME/.bash_profile"
+        else
+            shell_profile="$HOME/.profile"
+        fi
+        
+        local env_export="# Seafile MCP Server
+export SEAFILE_URL=\"\$(grep SEAFILE_URL $INSTALL_DIR/.env | cut -d'=' -f2)\"
+export SEAFILE_TOKEN=\"\$(grep SEAFILE_TOKEN $INSTALL_DIR/.env | cut -d'=' -f2)\""
+        
+        if ! grep -q "SEAFILE_MCP_SERVER" "$shell_profile" 2>/dev/null; then
+            echo "" >> "$shell_profile"
+            echo "$env_export" >> "$shell_profile"
+            print_success "Added env export to $shell_profile"
+            print_info "Run 'source $shell_profile' or restart your terminal to apply"
+        else
+            print_info "Env export already exists in $shell_profile"
+        fi
     else
         print_error "Failed to auto-configure OpenCode"
         echo ""
@@ -201,7 +245,7 @@ configure_claude() {
   \"mcpServers\": {
     \"seafile\": {
       \"command\": \"node\",
-      \"args\": [\"$INSTALL_DIR/dist/index.js\"],
+      \"args\": [\"$INSTALL_DIR/dist/src/index.js\"],
       \"env\": {
         \"SEAFILE_URL\": \"$SEAFILE_URL\",
         \"SEAFILE_TOKEN\": \"$SEAFILE_TOKEN\"
@@ -210,7 +254,7 @@ configure_claude() {
   }
 }"
     
-    if node "$INSTALL_DIR/scripts/setup-mcp.js" claude "$INSTALL_DIR" "$CLAUDE_CONFIG"; then
+    if cd "$INSTALL_DIR" && npx -y tsx scripts/setup-mcp.ts claude "$INSTALL_DIR" "$CLAUDE_CONFIG"; then
         print_success "Claude Code configured successfully"
     else
         print_error "Failed to auto-configure Claude Code"
@@ -225,19 +269,32 @@ configure_claude() {
 
 ask_config_questions() {
     echo ""
-    read -p "Configure OpenCode MCP? [Y/n] " -n 1 -r
+    echo "Which MCP client should be configured?"
+    echo "  1. OpenCode MCP"
+    echo "  2. Claude Code MCP"
+    echo "  3. Both"
     echo ""
-    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-        configure_opencode
-    fi
-    
-    if [ -n "$CLAUDE_CONFIG" ]; then
-        read -p "Configure Claude Code MCP? [Y/n] " -n 1 -r
-        echo ""
-        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            configure_claude
-        fi
-    fi
+    read -p "Enter choice [1-3]: " -n 1 -r
+    echo ""
+    case $REPLY in
+        1) configure_opencode ;;
+        2) 
+            if [ -n "$CLAUDE_CONFIG" ]; then
+                configure_claude
+            else
+                print_warning "Claude Desktop config path unknown for this platform"
+            fi
+            ;;
+        3) 
+            configure_opencode
+            if [ -n "$CLAUDE_CONFIG" ]; then
+                configure_claude
+            else
+                print_warning "Claude Desktop config path unknown for this platform"
+            fi
+            ;;
+        *) print_error "Invalid choice" ;;
+    esac
 }
 
 print_summary() {
@@ -248,6 +305,9 @@ print_summary() {
     echo ""
     echo -e "${BLUE}Installation directory:${NC} $INSTALL_DIR"
     echo -e "${BLUE}Configuration file:${NC} $INSTALL_DIR/.env"
+    echo ""
+    echo "To apply environment variables:"
+    echo "  source ~/.zshrc   # or your shell profile"
     echo ""
     echo "To start the server:"
     echo "  cd $INSTALL_DIR && npm run start"
