@@ -35,33 +35,35 @@ export function validatePath(path: string): string {
   // Normalize path separators and remove duplicate slashes
   let normalized = path.replace(/\\/g, '/').replace(/\/{2,}/g, '/');
 
-  // Prevent path traversal attacks
-  // Check for .. that would escape the root
-  const pathParts = normalized.split('/').filter(p => p.length > 0);
-  let depth = 0;
-
-  for (const part of pathParts) {
-    if (part === '..') {
-      depth--;
-      if (depth < 0) {
-        throw new Error(`Invalid path "${path}": path traversal not allowed`);
-      }
-    } else if (part !== '.') {
-      depth++;
-    }
-  }
-
   // Ensure path starts with /
   if (!normalized.startsWith('/')) {
     normalized = '/' + normalized;
   }
 
-  // Remove trailing slash except for root
-  if (normalized.length > 1 && normalized.endsWith('/')) {
-    normalized = normalized.slice(0, -1);
+  // Resolve .. and . segments
+  const parts = normalized.split('/').filter(p => p.length > 0);
+  const resolved: string[] = [];
+
+  for (const part of parts) {
+    if (part === '..') {
+      if (resolved.length === 0) {
+        throw new Error(`Invalid path "${path}": path traversal not allowed`);
+      }
+      resolved.pop();
+    } else if (part !== '.') {
+      resolved.push(part);
+    }
   }
 
-  return normalized;
+  // Reconstruct path
+  const result = '/' + resolved.join('/');
+
+  // Remove trailing slash except for root
+  if (result.length > 1 && result.endsWith('/')) {
+    return result.slice(0, -1);
+  }
+
+  return result;
 }
 
 /**
@@ -128,10 +130,15 @@ export function validateContentSize(
   content: string,
   maxSizeBytes: number = 100 * 1024 * 1024
 ): number {
-  // Calculate approximate size
-  const size = content.startsWith('base64:')
-    ? Math.ceil((content.length - 7) * 0.75) // base64 decoded size
-    : Buffer.byteLength(content, 'utf-8');
+  // Calculate actual size
+  let size: number;
+  if (content.startsWith('base64:')) {
+    const base64String = content.slice(7);
+    // Decode base64 to get actual size
+    size = Buffer.from(base64String, 'base64').length;
+  } else {
+    size = Buffer.byteLength(content, 'utf-8');
+  }
 
   if (size > maxSizeBytes) {
     throw new Error(
