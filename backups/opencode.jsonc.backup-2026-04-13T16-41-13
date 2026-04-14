@@ -1,0 +1,15 @@
+{
+  "mcp": {
+    "seafile": {
+      "type": "local",
+      "command": [
+        "node",
+        "/Users/chameleon/.local/share/seafile-mcp-server/dist/index.js"
+      ],
+      "environment": {
+        "SEAFILE_URL": "{env:SEAFILE_URL}",
+        "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}"
+      }
+    }
+  }
+}
