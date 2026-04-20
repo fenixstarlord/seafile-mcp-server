@@ -1,12 +1,27 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { seafileRequest } from '../seafile.js';
-import { PathSchema } from '../types.js';
+import { loadConfig, PathSchema } from '../types.js';
 import { validatePath } from '../utils/validation.js';
-import { API_ENDPOINTS } from '../constants.js';
+import { API_ENDPOINTS, buildEndpoint } from '../constants.js';
 
 function joinPath(parent: string, child: string): string {
   return parent === '/' ? `/${child}` : `${parent}/${child}`;
+}
+
+function targetPath(parent: string, name: string): string {
+  return joinPath(parent, name);
+}
+
+function getParentDir(path: string): string {
+  if (path === '/') return '/';
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length <= 1) return '/';
+  return `/${segments.slice(0, -1).join('/')}`;
+}
+
+function getBaseName(path: string): string {
+  return path.split('/').filter(Boolean).at(-1) ?? '';
 }
 
 /**
@@ -31,6 +46,10 @@ function joinPath(parent: string, child: string): string {
  * ```
  */
 export function registerDirectoryTools(server: McpServer) {
+  const config = loadConfig();
+  const isAccountToken = config.SEAFILE_AUTH_MODE === 'account-token';
+  const repoId = config.SEAFILE_REPO_ID;
+
   /**
    * Tool: create_folder
    *
@@ -52,19 +71,24 @@ export function registerDirectoryTools(server: McpServer) {
     },
     async ({ path, name }: { path: string; name: string }) => {
       const validatedPath = validatePath(path);
+      const validatedTargetPath = targetPath(validatedPath, name);
       await seafileRequest(
-        `${API_ENDPOINTS.REPO_TOKEN.DIR}/?p=${encodeURIComponent(validatedPath)}`,
+        isAccountToken
+          ? `${buildEndpoint(API_ENDPOINTS.ACCOUNT.DIR, { id: repoId! })}/?p=${encodeURIComponent(validatedPath)}`
+          : `${API_ENDPOINTS.REPO_TOKEN.DIR}/?path=${encodeURIComponent(validatedTargetPath)}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ operation: 'mkdir', name }).toString(),
+          body: isAccountToken
+            ? new URLSearchParams({ operation: 'mkdir', name }).toString()
+            : new URLSearchParams({ operation: 'mkdir' }).toString(),
         }
       );
       return {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify({ success: true, path: joinPath(validatedPath, name) }),
+            text: JSON.stringify({ success: true, path: validatedTargetPath }),
           },
         ],
       };
@@ -92,7 +116,9 @@ export function registerDirectoryTools(server: McpServer) {
     async ({ path }: { path: string }) => {
       const validatedPath = validatePath(path);
       await seafileRequest(
-        `${API_ENDPOINTS.REPO_TOKEN.DIR}/?p=${encodeURIComponent(validatedPath)}`,
+        isAccountToken
+          ? `${buildEndpoint(API_ENDPOINTS.ACCOUNT.DIR, { id: repoId! })}/?p=${encodeURIComponent(validatedPath)}`
+          : `${API_ENDPOINTS.REPO_TOKEN.DIR}/?path=${encodeURIComponent(validatedPath)}`,
         {
           method: 'DELETE',
         }
@@ -131,10 +157,16 @@ export function registerDirectoryTools(server: McpServer) {
     },
     async ({ path, new_name, type }: { path: string; new_name: string; type: 'file' | 'dir' }) => {
       const validatedPath = validatePath(path);
-      const endpoint =
-        type === 'file' ? API_ENDPOINTS.REPO_TOKEN.FILE : API_ENDPOINTS.REPO_TOKEN.DIR;
+      const endpoint = isAccountToken
+        ? type === 'file'
+          ? buildEndpoint(API_ENDPOINTS.ACCOUNT.FILE_OPERATIONS, { id: repoId! })
+          : buildEndpoint(API_ENDPOINTS.ACCOUNT.DIR, { id: repoId! })
+        : type === 'file'
+          ? API_ENDPOINTS.REPO_TOKEN.FILE
+          : API_ENDPOINTS.REPO_TOKEN.DIR;
+      const queryParam = isAccountToken ? 'p' : 'path';
 
-      await seafileRequest(`${endpoint}/?p=${encodeURIComponent(validatedPath)}`, {
+      await seafileRequest(`${endpoint}/?${queryParam}=${encodeURIComponent(validatedPath)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ operation: 'rename', newname: new_name }).toString(),
@@ -150,17 +182,10 @@ export function registerDirectoryTools(server: McpServer) {
     }
   );
 
-  /**
-   * Tool: move_item
-   *
-   * Moves a file or folder to a new location. Supports both intra-library
-   * and cross-library moves (when target_repo_id is specified).
-   *
-   * @param src_path - Source path of the item
-   * @param dst_path - Destination directory path
-   * @param type - Item type: 'file' or 'dir'
-   * @returns Success confirmation with move details
-   */
+  if (!isAccountToken) {
+    return;
+  }
+
   server.registerTool(
     'move_item',
     {
@@ -172,63 +197,35 @@ export function registerDirectoryTools(server: McpServer) {
       },
       annotations: { idempotentHint: false },
     },
-    async ({
-      src_path,
-      dst_path,
-      type,
-    }: {
-      src_path: string;
-      dst_path: string;
-      type: 'file' | 'dir';
-    }) => {
+    async ({ src_path, dst_path }: { src_path: string; dst_path: string; type: 'file' | 'dir' }) => {
       const validatedSrcPath = validatePath(src_path);
       const validatedDstPath = validatePath(dst_path);
-      if (type === 'file') {
-        await seafileRequest(`${API_ENDPOINTS.REPO_TOKEN.FILE}/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            operation: 'move',
-            src_path: validatedSrcPath,
-            dst_path: validatedDstPath,
-          }).toString(),
-        });
-      } else {
-        await seafileRequest(`${API_ENDPOINTS.REPO_TOKEN.MOVE_DIR}/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            src_path: validatedSrcPath,
-            dst_path: validatedDstPath,
-          }).toString(),
-        });
-      }
+      const srcParentDir = getParentDir(validatedSrcPath);
+      const srcName = getBaseName(validatedSrcPath);
+
+      await seafileRequest(API_ENDPOINTS.ACCOUNT.BATCH_MOVE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          src_repo_id: repoId,
+          src_parent_dir: srcParentDir,
+          src_dirents: [srcName],
+          dst_repo_id: repoId,
+          dst_parent_dir: validatedDstPath,
+        }),
+      });
+
       return {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify({
-              success: true,
-              src_path: validatedSrcPath,
-              dst_path: validatedDstPath,
-            }),
+            text: JSON.stringify({ success: true, src_path: validatedSrcPath, dst_path: validatedDstPath }),
           },
         ],
       };
     }
   );
 
-  /**
-   * Tool: copy_item
-   *
-   * Copies a file or folder to a new location. Supports both intra-library
-   * and cross-library copies (when target_repo_id is specified).
-   *
-   * @param src_path - Source path of the item
-   * @param dst_path - Destination directory path
-   * @param type - Item type: 'file' or 'dir'
-   * @returns Success confirmation with copy details
-   */
   server.registerTool(
     'copy_item',
     {
@@ -240,40 +237,33 @@ export function registerDirectoryTools(server: McpServer) {
       },
       annotations: { idempotentHint: false },
     },
-    async ({
-      src_path,
-      dst_path,
-      type,
-    }: {
-      src_path: string;
-      dst_path: string;
-      type: 'file' | 'dir';
-    }) => {
+    async ({ src_path, dst_path }: { src_path: string; dst_path: string; type: 'file' | 'dir' }) => {
       const validatedSrcPath = validatePath(src_path);
       const validatedDstPath = validatePath(dst_path);
-      const endpoint =
-        type === 'file' ? API_ENDPOINTS.REPO_TOKEN.FILE : API_ENDPOINTS.REPO_TOKEN.DIR;
-      await seafileRequest(`${endpoint}/`, {
+      const srcParentDir = getParentDir(validatedSrcPath);
+      const srcName = getBaseName(validatedSrcPath);
+
+      await seafileRequest(API_ENDPOINTS.ACCOUNT.BATCH_COPY, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          operation: 'copy',
-          src_path: validatedSrcPath,
-          dst_path: validatedDstPath,
-        }).toString(),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          src_repo_id: repoId,
+          src_parent_dir: srcParentDir,
+          src_dirents: [srcName],
+          dst_repo_id: repoId,
+          dst_parent_dir: validatedDstPath,
+        }),
       });
+
       return {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify({
-              success: true,
-              src_path: validatedSrcPath,
-              dst_path: validatedDstPath,
-            }),
+            text: JSON.stringify({ success: true, src_path: validatedSrcPath, dst_path: validatedDstPath }),
           },
         ],
       };
     }
   );
+
 }

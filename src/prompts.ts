@@ -7,7 +7,7 @@ export function registerPrompts(server: McpServer) {
     'upload_workflow_prompt',
     {
       description:
-        'Guides the user through a step-by-step workflow for uploading files to Seafile, including selecting a library and destination folder.',
+        'Guides the user through a step-by-step workflow for uploading files to Seafile, including choosing a destination folder.',
       argsSchema: {
         filename: z.string().describe('Name of the file to upload'),
         content: z
@@ -52,64 +52,4 @@ Please execute the upload and confirm:
     }
   );
 
-  // Share item prompt - Helps user share files/folders
-  server.registerPrompt(
-    'share_item_prompt',
-    {
-      description: 'Helps the user share files or folders in Seafile via a public share link.',
-      argsSchema: {
-        path: z.string().describe('Path to the file or folder to share'),
-        password: z
-          .string()
-          .optional()
-          .describe('Optional password for the share link (only for share_type="link")'),
-        expire_days: z
-          .number()
-          .optional()
-          .describe(
-            'Optional number of days until the share link expires (only for share_type="link")'
-          ),
-      },
-    },
-    (args: { path: string; password?: string; expire_days?: number }) => {
-      const { path, password, expire_days } = args;
-      const instructions = `Use the create_share_link tool with:
-- path: "${path}"${
-        password
-          ? `
-- password: "${password}"`
-          : ''
-      }${
-        expire_days !== undefined
-          ? `
-- expire_days: ${expire_days}`
-          : ''
-      }
-
-This will generate a public share link that can be accessed by anyone with the link.`;
-
-      return {
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `I want to share an item in Seafile:
-- Path: "${path}"
-${password ? '- Password protected: Yes\n' : ''}${expire_days ? `- Expires after: ${expire_days} days\n` : ''}
-
-Please help me share this item.
-
-${instructions}
-
-After completing the share operation, please provide:
-- Confirmation that the share was created successfully
-- The share link URL
-- Any password or expiration details`,
-            },
-          },
-        ],
-      };
-    }
-  );
 }

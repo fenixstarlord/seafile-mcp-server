@@ -36,16 +36,12 @@ import { logger } from './logger.js';
  * MCP Server instance configured for Seafile integration
  *
  * Server capabilities:
- * - Repository management (list, create, delete libraries)
- * - File operations (upload, download, delete, get details)
- * - Directory operations (create, delete, rename, move, copy)
- * - Search functionality
- * - Sharing capabilities (links, user/group shares)
- * - Starred items management
- * - Account information
- * - Batch operations for bulk actions
+ * - Repository info for the configured library scope
+ * - File operations (upload, download link, delete, get details)
+ * - Directory operations (create, delete, rename)
+ * - Optional account-token advanced operations (move, copy, share links, batch move/copy)
+ * - Batch delete operations
  * - Interactive prompts for common workflows
- * - Resource access to repository listings
  */
 const server = new McpServer({
   name: 'seafile-mcp',

@@ -1,11 +1,22 @@
 {
   "mcpServers": {
-    "seafile": {
+    "seafile-vibes": {
       "command": "node",
-      "args": ["/path/to/seafile-mcp-server/dist/index.js"],
+      "args": ["/path/to/seafile-mcp-server/dist/src/index.js"],
       "env": {
         "SEAFILE_URL": "https://your-seafile-server.com",
-        "SEAFILE_TOKEN": "your-api-token-here"
+        "SEAFILE_TOKEN": "your-repo-token-here",
+        "SEAFILE_AUTH_MODE": "repo-token"
+      }
+    },
+    "seafile-admin-vibes": {
+      "command": "node",
+      "args": ["/path/to/seafile-mcp-server/dist/src/index.js"],
+      "env": {
+        "SEAFILE_URL": "https://your-seafile-server.com",
+        "SEAFILE_TOKEN": "your-account-token-here",
+        "SEAFILE_AUTH_MODE": "account-token",
+        "SEAFILE_REPO_ID": "550e8400-e29b-41d4-a716-446655440000"
       }
     }
   }

@@ -1,18 +1,13 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { seafileRequest } from '../seafile.js';
-import { PathSchema } from '../types.js';
+import { loadConfig, PathSchema } from '../types.js';
 import { validatePath } from '../utils/validation.js';
-import { API_ENDPOINTS } from '../constants.js';
+import { API_ENDPOINTS, buildEndpoint } from '../constants.js';
 
 const BatchDeleteItemSchema = z.object({
   path: PathSchema,
   type: z.enum(['file', 'dir']).describe('Whether the item is a file or directory'),
-});
-
-const BatchMoveCopyItemSchema = z.object({
-  src_path: PathSchema,
-  dst_path: PathSchema,
 });
 
 interface BatchResult<T> {
@@ -21,41 +16,22 @@ interface BatchResult<T> {
   error?: string;
 }
 
-async function moveItem(srcPath: string, dstPath: string, type: 'file' | 'dir') {
-  if (type === 'file') {
-    await seafileRequest(`${API_ENDPOINTS.REPO_TOKEN.FILE}/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        operation: 'move',
-        src_path: srcPath,
-        dst_path: dstPath,
-      }).toString(),
-    });
-    return;
-  }
-
-  await seafileRequest(`${API_ENDPOINTS.REPO_TOKEN.MOVE_DIR}/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ src_path: srcPath, dst_path: dstPath }).toString(),
-  });
+function getParentDir(path: string): string {
+  if (path === '/') return '/';
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length <= 1) return '/';
+  return `/${segments.slice(0, -1).join('/')}`;
 }
 
-async function copyItem(srcPath: string, dstPath: string, type: 'file' | 'dir') {
-  const endpoint = type === 'file' ? API_ENDPOINTS.REPO_TOKEN.FILE : API_ENDPOINTS.REPO_TOKEN.DIR;
-  await seafileRequest(`${endpoint}/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      operation: 'copy',
-      src_path: srcPath,
-      dst_path: dstPath,
-    }).toString(),
-  });
+function getBaseName(path: string): string {
+  return path.split('/').filter(Boolean).at(-1) ?? '';
 }
 
 export function registerBatchTools(server: McpServer) {
+  const config = loadConfig();
+  const isAccountToken = config.SEAFILE_AUTH_MODE === 'account-token';
+  const repoId = config.SEAFILE_REPO_ID;
+
   server.registerTool(
     'batch_delete',
     {
@@ -75,22 +51,21 @@ export function registerBatchTools(server: McpServer) {
         items.map(async item => {
           try {
             const validatedPath = validatePath(item.path);
-            if (item.type === 'dir') {
-              await seafileRequest(
-                `${API_ENDPOINTS.REPO_TOKEN.DIR}/?p=${encodeURIComponent(validatedPath)}`,
-                {
-                  method: 'DELETE',
-                }
-              );
-            } else {
-              await seafileRequest(`${API_ENDPOINTS.REPO_TOKEN.FILE}/`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ p: validatedPath }).toString(),
-              });
-            }
+            const endpoint =
+              isAccountToken
+                ? item.type === 'dir'
+                  ? `${buildEndpoint(API_ENDPOINTS.ACCOUNT.DIR, { id: repoId! })}/?p=${encodeURIComponent(validatedPath)}`
+                  : `${buildEndpoint(API_ENDPOINTS.ACCOUNT.FILE_OPERATIONS, { id: repoId! })}/?p=${encodeURIComponent(validatedPath)}`
+                : item.type === 'dir'
+                  ? `${API_ENDPOINTS.REPO_TOKEN.DIR}/?path=${encodeURIComponent(validatedPath)}`
+                  : `${API_ENDPOINTS.REPO_TOKEN.FILE}/?path=${encodeURIComponent(validatedPath)}`;
 
-            return { success: true, item: { path: validatedPath, type: item.type } };
+            await seafileRequest(endpoint, { method: 'DELETE' });
+
+            return {
+              success: true,
+              item: { path: validatedPath, type: item.type },
+            } satisfies BatchResult<{ path: string; type: 'file' | 'dir' }>;
           } catch (error) {
             return {
               success: false,
@@ -131,6 +106,56 @@ export function registerBatchTools(server: McpServer) {
     }
   );
 
+  if (!isAccountToken) {
+    return;
+  }
+
+  const BatchMoveCopyItemSchema = z.object({
+    src_path: PathSchema,
+    dst_path: PathSchema,
+  });
+
+  async function runBatchOperation(
+    endpoint: string,
+    items: Array<{ src_path: string; dst_path: string }>
+  ): Promise<BatchResult<{ src_path: string; dst_path: string }>[]> {
+    const results = await Promise.allSettled(
+      items.map(async item => {
+        try {
+          const validatedSrcPath = validatePath(item.src_path);
+          const validatedDstPath = validatePath(item.dst_path);
+          await seafileRequest(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              src_repo_id: repoId,
+              src_parent_dir: getParentDir(validatedSrcPath),
+              src_dirents: [getBaseName(validatedSrcPath)],
+              dst_repo_id: repoId,
+              dst_parent_dir: validatedDstPath,
+            }),
+          });
+          return {
+            success: true,
+            item: { src_path: validatedSrcPath, dst_path: validatedDstPath },
+          } satisfies BatchResult<{ src_path: string; dst_path: string }>;
+        } catch (error) {
+          return {
+            success: false,
+            item,
+            error: error instanceof Error ? error.message : String(error),
+          } satisfies BatchResult<{ src_path: string; dst_path: string }>;
+        }
+      })
+    );
+
+    return results.map(result =>
+      result.status === 'fulfilled'
+        ? result.value
+        : { success: false, item: { src_path: '', dst_path: '' }, error: String(result.reason) }
+    );
+  }
+
   server.registerTool(
     'batch_copy',
     {
@@ -146,61 +171,21 @@ export function registerBatchTools(server: McpServer) {
       },
       annotations: { idempotentHint: false },
     },
-    async ({
-      items,
-      type,
-    }: {
-      items: Array<{ src_path: string; dst_path: string }>;
-      type: 'file' | 'dir';
-    }) => {
-      const results = await Promise.allSettled(
-        items.map(async item => {
-          try {
-            const validatedSrcPath = validatePath(item.src_path);
-            const validatedDstPath = validatePath(item.dst_path);
-            await copyItem(validatedSrcPath, validatedDstPath, type);
-            return {
-              success: true,
-              item: { src_path: validatedSrcPath, dst_path: validatedDstPath },
-            } satisfies BatchResult<{ src_path: string; dst_path: string }>;
-          } catch (error) {
-            return {
-              success: false,
-              item,
-              error: error instanceof Error ? error.message : String(error),
-            } satisfies BatchResult<{ src_path: string; dst_path: string }>;
-          }
-        })
-      );
-
-      const processedResults: BatchResult<{ src_path: string; dst_path: string }>[] = results.map(
-        result =>
-          result.status === 'fulfilled'
-            ? result.value
-            : {
-                success: false,
-                item: { src_path: '', dst_path: '' },
-                error: String(result.reason),
-              }
-      );
-
+    async ({ items }: { items: Array<{ src_path: string; dst_path: string }>; type: 'file' | 'dir' }) => {
+      const processedResults = await runBatchOperation(API_ENDPOINTS.ACCOUNT.BATCH_COPY, items);
       const successCount = processedResults.filter(r => r.success).length;
       return {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify(
-              {
-                summary: {
-                  total: items.length,
-                  successful: successCount,
-                  failed: processedResults.length - successCount,
-                },
-                results: processedResults,
+            text: JSON.stringify({
+              summary: {
+                total: items.length,
+                successful: successCount,
+                failed: processedResults.length - successCount,
               },
-              null,
-              2
-            ),
+              results: processedResults,
+            }, null, 2),
           },
         ],
       };
@@ -222,61 +207,21 @@ export function registerBatchTools(server: McpServer) {
       },
       annotations: { idempotentHint: false },
     },
-    async ({
-      items,
-      type,
-    }: {
-      items: Array<{ src_path: string; dst_path: string }>;
-      type: 'file' | 'dir';
-    }) => {
-      const results = await Promise.allSettled(
-        items.map(async item => {
-          try {
-            const validatedSrcPath = validatePath(item.src_path);
-            const validatedDstPath = validatePath(item.dst_path);
-            await moveItem(validatedSrcPath, validatedDstPath, type);
-            return {
-              success: true,
-              item: { src_path: validatedSrcPath, dst_path: validatedDstPath },
-            } satisfies BatchResult<{ src_path: string; dst_path: string }>;
-          } catch (error) {
-            return {
-              success: false,
-              item,
-              error: error instanceof Error ? error.message : String(error),
-            } satisfies BatchResult<{ src_path: string; dst_path: string }>;
-          }
-        })
-      );
-
-      const processedResults: BatchResult<{ src_path: string; dst_path: string }>[] = results.map(
-        result =>
-          result.status === 'fulfilled'
-            ? result.value
-            : {
-                success: false,
-                item: { src_path: '', dst_path: '' },
-                error: String(result.reason),
-              }
-      );
-
+    async ({ items }: { items: Array<{ src_path: string; dst_path: string }>; type: 'file' | 'dir' }) => {
+      const processedResults = await runBatchOperation(API_ENDPOINTS.ACCOUNT.BATCH_MOVE, items);
       const successCount = processedResults.filter(r => r.success).length;
       return {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify(
-              {
-                summary: {
-                  total: items.length,
-                  successful: successCount,
-                  failed: processedResults.length - successCount,
-                },
-                results: processedResults,
+            text: JSON.stringify({
+              summary: {
+                total: items.length,
+                successful: successCount,
+                failed: processedResults.length - successCount,
               },
-              null,
-              2
-            ),
+              results: processedResults,
+            }, null, 2),
           },
         ],
       };

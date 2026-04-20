@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Cross-platform MCP configuration setup script
- * Usage: npx tsx scripts/setup-mcp.ts <client> <install-dir> <config-path>
+ * Usage: npx tsx scripts/setup-mcp.ts <client> <install-dir> <config-path> <entry-name> <env-path>
  */
 
 import * as fs from 'fs';
@@ -11,32 +11,38 @@ import * as os from 'os';
 const CLIENT = process.argv[2];
 const INSTALL_DIR = process.argv[3];
 const CONFIG_PATH = process.argv[4];
+const ENTRY_NAME = process.argv[5];
+const ENV_PATH = process.argv[6];
 
-if (!CLIENT || !INSTALL_DIR || !CONFIG_PATH) {
-  console.error('Usage: npx tsx scripts/setup-mcp.ts <client> <install-dir> <config-path>');
+if (!CLIENT || !INSTALL_DIR || !CONFIG_PATH || !ENTRY_NAME || !ENV_PATH) {
+  console.error(
+    'Usage: npx tsx scripts/setup-mcp.ts <client> <install-dir> <config-path> <entry-name> <env-path>'
+  );
   console.error('  client: opencode | claude');
   process.exit(1);
 }
 
 interface OpencodeConfig {
-  mcp?: {
-    seafile?: {
+  mcp?: Record<
+    string,
+    {
       type: string;
       command: string[];
       environment: Record<string, string>;
-    };
-  };
+    }
+  >;
   [key: string]: unknown;
 }
 
 interface ClaudeConfig {
-  mcpServers?: {
-    seafile?: {
+  mcpServers?: Record<
+    string,
+    {
       command: string;
       args: string[];
       env: Record<string, string>;
-    };
-  };
+    }
+  >;
   [key: string]: unknown;
 }
 
@@ -67,13 +73,16 @@ function loadEnvFile(envPath: string): Record<string, string> {
   const env: Record<string, string> = {};
 
   if (!fs.existsSync(envPath)) {
-    throw new Error('.env file not found');
+    throw new Error(`Env file not found: ${envPath}`);
   }
 
   const envContent = fs.readFileSync(envPath, 'utf8');
   envContent.split('\n').forEach(line => {
-    const [key, ...valueParts] = line.split('=');
-    const value = valueParts.join('='); // Handle values that contain =
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+
+    const [key, ...valueParts] = trimmed.split('=');
+    const value = valueParts.join('=');
     if (key && value !== undefined) {
       env[key.trim()] = value.trim();
     }
@@ -82,103 +91,83 @@ function loadEnvFile(envPath: string): Record<string, string> {
   return env;
 }
 
-function setupOpencodeConfig(): boolean {
-  const seafileEntry = {
-    type: 'local',
-    command: ['node', path.join(INSTALL_DIR, 'dist', 'src', 'index.js')],
-    environment: {
-      SEAFILE_URL: '{env:SEAFILE_URL}',
-      SEAFILE_TOKEN: '{env:SEAFILE_TOKEN}',
-    },
-  };
+function sanitizeEnvPrefix(name: string): string {
+  return name.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase();
+}
 
-  let config: OpencodeConfig = {};
-
-  if (fs.existsSync(CONFIG_PATH)) {
-    const content = fs.readFileSync(CONFIG_PATH, 'utf8');
-    // Remove comments (simple approach for JSONC)
-    const cleaned = content.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-
-    if (validateJson(cleaned)) {
-      config = JSON.parse(cleaned) as OpencodeConfig;
-    } else {
-      throw new Error('Invalid JSON in existing config');
-    }
-
-    // Backup existing config
-    const backupPath = getBackupPath(CONFIG_PATH);
-    fs.copyFileSync(CONFIG_PATH, backupPath);
-    console.log(`Backed up existing config to: ${backupPath}`);
+function readOrInitJson<T extends object>(configPath: string, fallback: T, isJsonc = false): T {
+  if (!fs.existsSync(configPath)) {
+    return fallback;
   }
 
-  // Ensure mcp section exists
+  const content = fs.readFileSync(configPath, 'utf8');
+  const cleaned = isJsonc
+    ? content.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
+    : content;
+
+  if (!validateJson(cleaned)) {
+    throw new Error(`Invalid JSON in existing config: ${configPath}`);
+  }
+
+  const backupPath = getBackupPath(configPath);
+  fs.copyFileSync(configPath, backupPath);
+  console.log(`Backed up existing config to: ${backupPath}`);
+
+  return JSON.parse(cleaned) as T;
+}
+
+function setupOpencodeConfig(): boolean {
+  const envPrefix = sanitizeEnvPrefix(ENTRY_NAME);
+  const config = readOrInitJson<OpencodeConfig>(CONFIG_PATH, {}, true);
+
   if (!config.mcp) {
     config.mcp = {};
   }
 
-  // Check if seafile already exists
-  if (config.mcp.seafile) {
-    console.log('Seafile MCP configuration already exists, updating...');
-  }
+  config.mcp[ENTRY_NAME] = {
+    type: 'local',
+    command: ['node', path.join(INSTALL_DIR, 'dist', 'src', 'index.js')],
+    environment: {
+      SEAFILE_URL: `{env:SEAFILE_${envPrefix}_URL}`,
+      SEAFILE_TOKEN: `{env:SEAFILE_${envPrefix}_TOKEN}`,
+      SEAFILE_AUTH_MODE: `{env:SEAFILE_${envPrefix}_AUTH_MODE}`,
+      SEAFILE_REPO_ID: `{env:SEAFILE_${envPrefix}_REPO_ID}`,
+    },
+  };
 
-  config.mcp.seafile = seafileEntry;
-
-  // Write config (preserve JSONC if comments existed)
-  const output = JSON.stringify(config, null, 2);
-  fs.writeFileSync(CONFIG_PATH, output);
-  console.log(`Updated: ${CONFIG_PATH}`);
-
+  fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  console.log(`Updated OpenCode MCP entry '${ENTRY_NAME}' in: ${CONFIG_PATH}`);
   return true;
 }
 
 function setupClaudeConfig(): boolean {
-  // Read values from .env file
-  const envPath = path.join(INSTALL_DIR, '.env');
-  const env = loadEnvFile(envPath);
+  const env = loadEnvFile(ENV_PATH);
+  const config = readOrInitJson<ClaudeConfig>(CONFIG_PATH, { mcpServers: {} });
 
-  const seafileEntry = {
-    command: 'node',
-    args: [path.join(INSTALL_DIR, 'dist', 'src', 'index.js').replace(/\\/g, '/')],
-    env: {
-      SEAFILE_URL: env.SEAFILE_URL || '',
-      SEAFILE_TOKEN: env.SEAFILE_TOKEN || '',
-    },
-  };
-
-  let config: ClaudeConfig = { mcpServers: {} };
-
-  if (fs.existsSync(CONFIG_PATH)) {
-    const content = fs.readFileSync(CONFIG_PATH, 'utf8');
-
-    if (validateJson(content)) {
-      config = JSON.parse(content) as ClaudeConfig;
-    } else {
-      throw new Error('Invalid JSON in existing config');
-    }
-
-    // Backup existing config
-    const backupPath = getBackupPath(CONFIG_PATH);
-    fs.copyFileSync(CONFIG_PATH, backupPath);
-    console.log(`Backed up existing config to: ${backupPath}`);
-  }
-
-  // Ensure mcpServers section exists
   if (!config.mcpServers) {
     config.mcpServers = {};
   }
 
-  // Check if seafile already exists
-  if (config.mcpServers.seafile) {
-    console.log('Seafile MCP configuration already exists, updating...');
+  const entryEnv: Record<string, string> = {
+    SEAFILE_URL: env.SEAFILE_URL || '',
+    SEAFILE_TOKEN: env.SEAFILE_TOKEN || '',
+    SEAFILE_AUTH_MODE: env.SEAFILE_AUTH_MODE || 'repo-token',
+  };
+
+  if (env.SEAFILE_REPO_ID) {
+    entryEnv.SEAFILE_REPO_ID = env.SEAFILE_REPO_ID;
   }
 
-  config.mcpServers.seafile = seafileEntry;
+  config.mcpServers[ENTRY_NAME] = {
+    command: 'node',
+    args: [path.join(INSTALL_DIR, 'dist', 'src', 'index.js').replace(/\\/g, '/')],
+    env: entryEnv,
+  };
 
-  // Write config
-  const output = JSON.stringify(config, null, 2);
-  fs.writeFileSync(CONFIG_PATH, output);
-  console.log(`Updated: ${CONFIG_PATH}`);
-
+  fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  console.log(`Updated Claude MCP entry '${ENTRY_NAME}' in: ${CONFIG_PATH}`);
   return true;
 }
 

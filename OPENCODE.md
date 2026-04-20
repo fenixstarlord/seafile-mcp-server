@@ -1,56 +1,71 @@
 # Seafile MCP Server — OpenCode
 
-An MCP server for Seafile that works with OpenCode and is scoped to a single Seafile library via repo API token.
+An MCP server for Seafile that works with OpenCode and is scoped to a single Seafile library.
 
 > **Note:** For Claude Code setup, see [CLAUDE.md](./CLAUDE.md).
 
 ## Project Overview
 
 - **Type:** MCP server
-- **Auth model:** Repo-token only
+- **Auth model:** Repo-token by default, optional account-token mode
 - **Runtime:** Node.js 20+
-- **Entry:** `dist/index.js`
+- **Entry:** `dist/src/index.js`
 
-## Available Tools (16 total)
+## Available Tools
 
 | Category       | Tools                                                                     |
 | -------------- | ------------------------------------------------------------------------- |
 | **File**       | `list_files`, `get_file`, `get_file_detail`, `upload_file`, `delete_file` |
-| **Directory**  | `create_folder`, `delete_folder`, `rename_item`, `move_item`, `copy_item` |
-| **Batch**      | `batch_delete`, `batch_copy`, `batch_move`                                |
+| **Directory**  | `create_folder`, `delete_folder`, `rename_item`                           |
+| **Batch**      | `batch_delete`                                                            |
 | **Repository** | `get_repo_info`                                                           |
-| **Sharing**    | `create_share_link`                                                       |
 | **Server**     | `get_server_info`                                                         |
 
-Most tools no longer take `repo_id`. The active repository is selected by `SEAFILE_TOKEN`.
+Repo-token mode is the default and recommended mode. In optional account-token mode, the server also registers `move_item`, `copy_item`, `batch_copy`, `batch_move`, and `create_share_link`.
 
 ## Configuration
 
-Add to your OpenCode config file (`~/.config/opencode/opencode.jsonc` on macOS/Linux, `%APPDATA%\opencode\opencode.jsonc` on Windows):
+Add one or more named entries to your OpenCode config file (`~/.config/opencode/opencode.jsonc` on macOS/Linux, `%APPDATA%\opencode\opencode.jsonc` on Windows):
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "seafile": {
+    "seafile-vibes": {
       "type": "local",
-      "command": ["node", "/path/to/seafile-mcp-server/dist/index.js"],
+      "command": ["node", "/path/to/seafile-mcp-server/dist/src/index.js"],
       "environment": {
-        "SEAFILE_URL": "{env:SEAFILE_URL}",
-        "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}",
-      },
+        "SEAFILE_URL": "{env:SEAFILE_VIBES_URL}",
+        "SEAFILE_TOKEN": "{env:SEAFILE_VIBES_TOKEN}",
+        "SEAFILE_AUTH_MODE": "{env:SEAFILE_VIBES_AUTH_MODE}",
+        "SEAFILE_REPO_ID": "{env:SEAFILE_VIBES_REPO_ID}"
+      }
     },
+    "seafile-admin-vibes": {
+      "type": "local",
+      "command": ["node", "/path/to/seafile-mcp-server/dist/src/index.js"],
+      "environment": {
+        "SEAFILE_URL": "{env:SEAFILE_ADMIN_VIBES_URL}",
+        "SEAFILE_TOKEN": "{env:SEAFILE_ADMIN_VIBES_TOKEN}",
+        "SEAFILE_AUTH_MODE": "{env:SEAFILE_ADMIN_VIBES_AUTH_MODE}",
+        "SEAFILE_REPO_ID": "{env:SEAFILE_ADMIN_VIBES_REPO_ID}"
+      }
+    }
   },
 }
 ```
 
+The installer can add multiple named entries by re-running it for each scope you want to register.
+
 ## Environment Variables
 
-| Variable        | Description                                                  |
-| --------------- | ------------------------------------------------------------ |
-| `SEAFILE_URL`   | Your Seafile server URL, e.g. `https://seafile.example.com`  |
-| `SEAFILE_TOKEN` | Repo API token for the single library this server should use |
-| `LOG_LEVEL`     | Logging level: `debug`, `info`, `warn`, `error`, `fatal`     |
+| Variable | Description |
+| -------- | ----------- |
+| `SEAFILE_URL` | Your Seafile server URL, e.g. `https://seafile.example.com` |
+| `SEAFILE_TOKEN` | Repo API token by default, or account token in account-token mode |
+| `SEAFILE_AUTH_MODE` | Optional: `repo-token` (default) or `account-token` |
+| `SEAFILE_REPO_ID` | Required only in account-token mode to scope the server to one library |
+| `LOG_LEVEL` | Logging level: `debug`, `info`, `warn`, `error`, `fatal` |
 
 OpenCode reads `{env:VAR}` values from your shell environment. If you installed with the included installer, load the generated `.env` file from your shell profile.
 

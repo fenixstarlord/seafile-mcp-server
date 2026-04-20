@@ -2,9 +2,9 @@
 
 ## Overview
 
-This server exposes a repo-token-only Seafile integration over MCP. One MCP server instance maps to one Seafile library, selected by `SEAFILE_TOKEN`.
+This server exposes a Seafile integration over MCP scoped to one library.
 
-- **Authentication:** Repo token only
+- **Authentication:** Repo token by default, optional account-token mode
 - **Transport:** Stdio
 - **Runtime:** Node.js 20+, TypeScript, MCP TypeScript SDK
 
@@ -30,8 +30,10 @@ src/
 
 | Variable        | Required | Description                                                        |
 | --------------- | -------- | ------------------------------------------------------------------ |
-| `SEAFILE_URL`   | Yes      | Base URL of the Seafile server, e.g. `https://seafile.example.com` |
-| `SEAFILE_TOKEN` | Yes      | Repo API token for the single Seafile library this server manages  |
+| `SEAFILE_URL` | Yes | Base URL of the Seafile server, e.g. `https://seafile.example.com` |
+| `SEAFILE_TOKEN` | Yes | Repo API token by default, or account token in account-token mode |
+| `SEAFILE_AUTH_MODE` | No | `repo-token` (default) or `account-token` |
+| `SEAFILE_REPO_ID` | Conditional | Required when `SEAFILE_AUTH_MODE=account-token` |
 
 ## Tool Inventory
 
@@ -48,24 +50,24 @@ src/
 - `create_folder(path, name)`
 - `delete_folder(path)`
 - `rename_item(path, new_name, type)`
-- `move_item(src_path, dst_path, type)`
-- `copy_item(src_path, dst_path, type)`
+- `move_item(src_path, dst_path, type)` account-token mode only
+- `copy_item(src_path, dst_path, type)` account-token mode only
 
 ### Batch Tools
 
 - `batch_delete(items[{ path, type }])`
-- `batch_copy(items[{ src_path, dst_path }], type)`
-- `batch_move(items[{ src_path, dst_path }], type)`
+- `batch_copy(items[{ src_path, dst_path }], type)` account-token mode only
+- `batch_move(items[{ src_path, dst_path }], type)` account-token mode only
 
 ### Repository and Sharing Tools
 
 - `get_repo_info()`
-- `create_share_link(path, password?, expire_days?)`
+- `create_share_link(path, password?, expire_days?)` account-token mode only
 - `get_server_info()`
 
 ## Non-Goals
 
-These account-scope tools are intentionally removed from the runtime because they do not fit repo-token auth:
+These account-scope tools are intentionally removed from the default repo-token runtime because they do not fit the validated repo-token API on this Seafile server:
 
 - Repository listing and creation
 - Account info
@@ -75,6 +77,8 @@ These account-scope tools are intentionally removed from the runtime because the
 - Shared-item listing
 - Starred item management
 - Repository list resources
+
+Account-token mode restores the advanced operations implemented for that contract: move, copy, batch move/copy, and share-link creation.
 
 ## HTTP Client Requirements
 

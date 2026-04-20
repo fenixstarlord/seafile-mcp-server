@@ -6,8 +6,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
  * Resources provide a way to expose data through URI-based access patterns.
  * This allows clients to read specific data resources as needed.
  *
- * Currently registered resources:
- * - seafile://repos - List of all accessible repositories
+ * Currently no resources are registered.
  *
  * @param server - The MCP server instance to register resources with
  *

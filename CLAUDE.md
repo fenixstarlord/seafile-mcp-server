@@ -1,32 +1,31 @@
 # Seafile MCP Server — Claude Code
 
-An MCP server for Seafile that works with Claude Code and is scoped to a single Seafile library via repo API token.
+An MCP server for Seafile that works with Claude Code and is scoped to a single Seafile library.
 
 > **Note:** For OpenCode setup, see [OPENCODE.md](./OPENCODE.md).
 
 ## Project Overview
 
 - **Type:** MCP server
-- **Auth model:** Repo-token only
+- **Auth model:** Repo-token by default, optional account-token mode
 - **Runtime:** Node.js 20+
-- **Entry:** `dist/index.js`
+- **Entry:** `dist/src/index.js`
 
-## Available Tools (16 total)
+## Available Tools
 
 | Category       | Tools                                                                     |
 | -------------- | ------------------------------------------------------------------------- |
 | **File**       | `list_files`, `get_file`, `get_file_detail`, `upload_file`, `delete_file` |
-| **Directory**  | `create_folder`, `delete_folder`, `rename_item`, `move_item`, `copy_item` |
-| **Batch**      | `batch_delete`, `batch_copy`, `batch_move`                                |
+| **Directory**  | `create_folder`, `delete_folder`, `rename_item`                           |
+| **Batch**      | `batch_delete`                                                            |
 | **Repository** | `get_repo_info`                                                           |
-| **Sharing**    | `create_share_link`                                                       |
 | **Server**     | `get_server_info`                                                         |
 
-Most tools no longer take `repo_id`. The active repository is selected by `SEAFILE_TOKEN`.
+Repo-token mode is the default and recommended mode. In optional account-token mode, the server also registers `move_item`, `copy_item`, `batch_copy`, `batch_move`, and `create_share_link`.
 
 ## Configuration
 
-Add to your Claude Desktop configuration file:
+Add one or more named entries to your Claude Desktop configuration file:
 
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Linux:** `~/.config/Claude/claude_desktop_config.json`
@@ -35,25 +34,40 @@ Add to your Claude Desktop configuration file:
 ```json
 {
   "mcpServers": {
-    "seafile": {
+    "seafile-vibes": {
       "command": "node",
-      "args": ["/path/to/seafile-mcp-server/dist/index.js"],
+      "args": ["/path/to/seafile-mcp-server/dist/src/index.js"],
       "env": {
         "SEAFILE_URL": "https://seafile.example.com",
-        "SEAFILE_TOKEN": "your-repo-token-here"
+        "SEAFILE_TOKEN": "your-repo-token-here",
+        "SEAFILE_AUTH_MODE": "repo-token"
+      }
+    },
+    "seafile-admin-vibes": {
+      "command": "node",
+      "args": ["/path/to/seafile-mcp-server/dist/src/index.js"],
+      "env": {
+        "SEAFILE_URL": "https://seafile.example.com",
+        "SEAFILE_TOKEN": "your-account-token-here",
+        "SEAFILE_AUTH_MODE": "account-token",
+        "SEAFILE_REPO_ID": "550e8400-e29b-41d4-a716-446655440000"
       }
     }
   }
 }
 ```
 
+The installer can add multiple named entries by re-running it for each scope you want to register.
+
 ## Environment Variables
 
-| Variable        | Description                                                  |
-| --------------- | ------------------------------------------------------------ |
-| `SEAFILE_URL`   | Your Seafile server URL, e.g. `https://seafile.example.com`  |
-| `SEAFILE_TOKEN` | Repo API token for the single library this server should use |
-| `LOG_LEVEL`     | Logging level: `debug`, `info`, `warn`, `error`, `fatal`     |
+| Variable | Description |
+| -------- | ----------- |
+| `SEAFILE_URL` | Your Seafile server URL, e.g. `https://seafile.example.com` |
+| `SEAFILE_TOKEN` | Repo API token by default, or account token in account-token mode |
+| `SEAFILE_AUTH_MODE` | Optional: `repo-token` (default) or `account-token` |
+| `SEAFILE_REPO_ID` | Required only in account-token mode to scope the server to one library |
+| `LOG_LEVEL` | Logging level: `debug`, `info`, `warn`, `error`, `fatal` |
 
 ## Getting Your Seafile Repo Token
 

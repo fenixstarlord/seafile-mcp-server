@@ -1,12 +1,24 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "seafile": {
+    "seafile-vibes": {
       "type": "local",
-      "command": ["node", "/path/to/seafile-mcp-server/dist/index.js"],
+      "command": ["node", "/path/to/seafile-mcp-server/dist/src/index.js"],
       "environment": {
-        "SEAFILE_URL": "{env:SEAFILE_URL}",
-        "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}"
+        "SEAFILE_URL": "{env:SEAFILE_VIBES_URL}",
+        "SEAFILE_TOKEN": "{env:SEAFILE_VIBES_TOKEN}",
+        "SEAFILE_AUTH_MODE": "{env:SEAFILE_VIBES_AUTH_MODE}",
+        "SEAFILE_REPO_ID": "{env:SEAFILE_VIBES_REPO_ID}"
+      }
+    },
+    "seafile-admin-vibes": {
+      "type": "local",
+      "command": ["node", "/path/to/seafile-mcp-server/dist/src/index.js"],
+      "environment": {
+        "SEAFILE_URL": "{env:SEAFILE_ADMIN_VIBES_URL}",
+        "SEAFILE_TOKEN": "{env:SEAFILE_ADMIN_VIBES_TOKEN}",
+        "SEAFILE_AUTH_MODE": "{env:SEAFILE_ADMIN_VIBES_AUTH_MODE}",
+        "SEAFILE_REPO_ID": "{env:SEAFILE_ADMIN_VIBES_REPO_ID}"
       }
     }
   }

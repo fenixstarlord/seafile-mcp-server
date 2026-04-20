@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { seafileRequest } from '../seafile.js';
-import { type RepoInfo } from '../types.js';
-import { API_ENDPOINTS } from '../constants.js';
+import { loadConfig, type RepoInfo } from '../types.js';
+import { API_ENDPOINTS, buildEndpoint } from '../constants.js';
 
 /**
  * Registers repository-related tools with the MCP server
@@ -22,6 +22,7 @@ import { API_ENDPOINTS } from '../constants.js';
  * ```
  */
 export function registerRepoTools(server: McpServer) {
+  const config = loadConfig();
   /**
    * Tool: get_repo_info
    *
@@ -37,7 +38,11 @@ export function registerRepoTools(server: McpServer) {
       annotations: { readOnlyHint: true },
     },
     async () => {
-      const info = await seafileRequest<RepoInfo>(`${API_ENDPOINTS.REPO_TOKEN.REPO_INFO}/`);
+      const endpoint =
+        config.SEAFILE_AUTH_MODE === 'account-token'
+          ? `${buildEndpoint(API_ENDPOINTS.ACCOUNT.REPO_INFO, { id: config.SEAFILE_REPO_ID! })}/`
+          : `${API_ENDPOINTS.REPO_TOKEN.REPO_INFO}/`;
+      const info = await seafileRequest<RepoInfo>(endpoint);
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(info, null, 2) }],
       };

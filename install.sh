@@ -13,10 +13,24 @@ XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 INSTALL_DIR="$XDG_DATA_HOME/seafile-mcp-server"
 BACKUP_DIR="$INSTALL_DIR/backups"
+PROFILES_DIR="$INSTALL_DIR/profiles"
 
 # Config paths
 OPENCODE_CONFIG="$XDG_CONFIG_HOME/opencode/opencode.jsonc"
 CLAUDE_CONFIG=""
+ENTRY_NAME=""
+ENTRY_SLUG=""
+ENTRY_ENV_PATH=""
+SEAFILE_AUTH_MODE="repo-token"
+SEAFILE_REPO_ID=""
+
+sanitize_slug() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
+}
+
+sanitize_env_prefix() {
+    printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | sed -E 's/[^A-Z0-9]+/_/g; s/^_+//; s/_+$//'
+}
 
 print_banner() {
     echo ""
@@ -94,6 +108,7 @@ setup_directories() {
     
     mkdir -p "$INSTALL_DIR"
     mkdir -p "$BACKUP_DIR"
+    mkdir -p "$PROFILES_DIR"
     mkdir -p "$XDG_CONFIG_HOME/opencode"
     
     print_success "Created directories at $INSTALL_DIR"
@@ -151,6 +166,19 @@ clone_or_update_repo() {
 prompt_for_env() {
     print_info "Configuration"
     echo ""
+
+    read -p "Enter a name for this MCP entry (e.g., seafile-vibes): " ENTRY_NAME
+    while [[ -z "$ENTRY_NAME" ]]; do
+        print_error "Entry name cannot be empty"
+        read -p "Enter a name for this MCP entry: " ENTRY_NAME
+    done
+
+    ENTRY_SLUG="$(sanitize_slug "$ENTRY_NAME")"
+    if [[ -z "$ENTRY_SLUG" ]]; then
+        print_error "Entry name must contain letters or numbers"
+        exit 1
+    fi
+    ENTRY_ENV_PATH="$PROFILES_DIR/$ENTRY_SLUG.env"
     
     read -p "Enter your Seafile server URL (e.g., https://seafile.example.com): " SEAFILE_URL
     while [[ -z "$SEAFILE_URL" ]]; do
@@ -158,21 +186,55 @@ prompt_for_env() {
         read -p "Enter your Seafile server URL: " SEAFILE_URL
     done
     
-    read -p "Enter your Seafile repo API token: " SEAFILE_TOKEN
     echo ""
-    while [[ -z "$SEAFILE_TOKEN" ]]; do
-        print_error "Repo API token cannot be empty"
+    echo "Select auth mode:"
+    echo "  1. Repo token"
+    echo "  2. Account token"
+    read -p "Enter choice [1-2]: " AUTH_CHOICE
+    case "$AUTH_CHOICE" in
+        2) SEAFILE_AUTH_MODE="account-token" ;;
+        *) SEAFILE_AUTH_MODE="repo-token" ;;
+    esac
+
+    if [[ "$SEAFILE_AUTH_MODE" == "account-token" ]]; then
+        read -p "Enter your Seafile account token: " SEAFILE_TOKEN
+        echo ""
+        while [[ -z "$SEAFILE_TOKEN" ]]; do
+            print_error "Account token cannot be empty"
+            read -p "Enter your Seafile account token: " SEAFILE_TOKEN
+            echo ""
+        done
+
+        read -p "Enter the Seafile repo ID to scope this entry: " SEAFILE_REPO_ID
+        while [[ -z "$SEAFILE_REPO_ID" ]]; do
+            print_error "Repo ID cannot be empty in account-token mode"
+            read -p "Enter the Seafile repo ID to scope this entry: " SEAFILE_REPO_ID
+        done
+    else
         read -p "Enter your Seafile repo API token: " SEAFILE_TOKEN
         echo ""
-    done
+        while [[ -z "$SEAFILE_TOKEN" ]]; do
+            print_error "Repo API token cannot be empty"
+            read -p "Enter your Seafile repo API token: " SEAFILE_TOKEN
+            echo ""
+        done
+    fi
+
+    echo ""
     
-    # Save to .env
-    cat > "$INSTALL_DIR/.env" << EOF
+    cat > "$ENTRY_ENV_PATH" << EOF
 SEAFILE_URL=$SEAFILE_URL
 SEAFILE_TOKEN=$SEAFILE_TOKEN
+SEAFILE_AUTH_MODE=$SEAFILE_AUTH_MODE
 EOF
+
+    if [[ -n "$SEAFILE_REPO_ID" ]]; then
+        cat >> "$ENTRY_ENV_PATH" << EOF
+SEAFILE_REPO_ID=$SEAFILE_REPO_ID
+EOF
+    fi
     
-    print_success "Configuration saved to $INSTALL_DIR/.env"
+    print_success "Configuration saved to $ENTRY_ENV_PATH"
 }
 
 detect_claude_config_path() {
@@ -189,7 +251,7 @@ detect_claude_config_path() {
 configure_opencode() {
     print_info "Configuring OpenCode..."
     
-    if cd "$INSTALL_DIR" && npx -y tsx scripts/setup-mcp.ts opencode "$INSTALL_DIR" "$OPENCODE_CONFIG"; then
+        if cd "$INSTALL_DIR" && npx -y tsx scripts/setup-mcp.ts opencode "$INSTALL_DIR" "$OPENCODE_CONFIG" "$ENTRY_NAME" "$ENTRY_ENV_PATH"; then
         print_success "OpenCode configured successfully"
         
         # Add env export to shell profile for OpenCode MCP
@@ -206,11 +268,16 @@ configure_opencode() {
             shell_profile="$HOME/.profile"
         fi
         
-        local env_export="# Seafile MCP Server
-export SEAFILE_URL=\"\$(grep SEAFILE_URL $INSTALL_DIR/.env | cut -d'=' -f2)\"
-export SEAFILE_TOKEN=\"\$(grep SEAFILE_TOKEN $INSTALL_DIR/.env | cut -d'=' -f2)\""
+        local env_prefix
+        env_prefix="$(sanitize_env_prefix "$ENTRY_NAME")"
+        local marker="# SEAFILE_MCP_SERVER_${env_prefix}"
+        local env_export="$marker
+export SEAFILE_${env_prefix}_URL=\"\$(grep '^SEAFILE_URL=' \"$ENTRY_ENV_PATH\" | cut -d'=' -f2-)\"
+export SEAFILE_${env_prefix}_TOKEN=\"\$(grep '^SEAFILE_TOKEN=' \"$ENTRY_ENV_PATH\" | cut -d'=' -f2-)\"
+export SEAFILE_${env_prefix}_AUTH_MODE=\"\$(grep '^SEAFILE_AUTH_MODE=' \"$ENTRY_ENV_PATH\" | cut -d'=' -f2-)\"
+export SEAFILE_${env_prefix}_REPO_ID=\"\$(grep '^SEAFILE_REPO_ID=' \"$ENTRY_ENV_PATH\" | cut -d'=' -f2-)\""
         
-        if ! grep -q "SEAFILE_MCP_SERVER" "$shell_profile" 2>/dev/null; then
+        if ! grep -q "$marker" "$shell_profile" 2>/dev/null; then
             echo "" >> "$shell_profile"
             echo "$env_export" >> "$shell_profile"
             print_success "Added env export to $shell_profile"
@@ -222,8 +289,25 @@ export SEAFILE_TOKEN=\"\$(grep SEAFILE_TOKEN $INSTALL_DIR/.env | cut -d'=' -f2)\
         print_error "Failed to auto-configure OpenCode"
         echo ""
         echo -e "${YELLOW}Manual configuration required:${NC}"
+        local env_prefix
+        env_prefix="$(sanitize_env_prefix "$ENTRY_NAME")"
         echo "Add the following to your opencode.jsonc file:"
-        echo "$config_snippet"
+        cat << EOF
+{
+  "mcp": {
+    "$ENTRY_NAME": {
+      "type": "local",
+      "command": ["node", "$INSTALL_DIR/dist/src/index.js"],
+      "environment": {
+        "SEAFILE_URL": "{env:SEAFILE_${env_prefix}_URL}",
+        "SEAFILE_TOKEN": "{env:SEAFILE_${env_prefix}_TOKEN}",
+        "SEAFILE_AUTH_MODE": "{env:SEAFILE_${env_prefix}_AUTH_MODE}",
+        "SEAFILE_REPO_ID": "{env:SEAFILE_${env_prefix}_REPO_ID}"
+      }
+    }
+  }
+}
+EOF
         echo ""
         echo "Config location: $OPENCODE_CONFIG"
     fi
@@ -237,9 +321,8 @@ configure_claude() {
     
     print_info "Configuring Claude Code..."
     
-    # Read values from .env for the snippet
-    local SEAFILE_URL=$(grep SEAFILE_URL "$INSTALL_DIR/.env" | cut -d'=' -f2)
-    local SEAFILE_TOKEN=$(grep SEAFILE_TOKEN "$INSTALL_DIR/.env" | cut -d'=' -f2)
+    local SEAFILE_URL=$(grep '^SEAFILE_URL=' "$ENTRY_ENV_PATH" | cut -d'=' -f2-)
+    local SEAFILE_TOKEN=$(grep '^SEAFILE_TOKEN=' "$ENTRY_ENV_PATH" | cut -d'=' -f2-)
     
     local config_snippet="{
   \"mcpServers\": {
@@ -254,14 +337,34 @@ configure_claude() {
   }
 }"
     
-    if cd "$INSTALL_DIR" && npx -y tsx scripts/setup-mcp.ts claude "$INSTALL_DIR" "$CLAUDE_CONFIG"; then
+    if cd "$INSTALL_DIR" && npx -y tsx scripts/setup-mcp.ts claude "$INSTALL_DIR" "$CLAUDE_CONFIG" "$ENTRY_NAME" "$ENTRY_ENV_PATH"; then
         print_success "Claude Code configured successfully"
     else
         print_error "Failed to auto-configure Claude Code"
         echo ""
         echo -e "${YELLOW}Manual configuration required:${NC}"
         echo "Add the following to your claude_desktop_config.json file:"
-        echo "$config_snippet"
+        local entry_url entry_token entry_mode entry_repo_id
+        entry_url=$(grep '^SEAFILE_URL=' "$ENTRY_ENV_PATH" | cut -d'=' -f2-)
+        entry_token=$(grep '^SEAFILE_TOKEN=' "$ENTRY_ENV_PATH" | cut -d'=' -f2-)
+        entry_mode=$(grep '^SEAFILE_AUTH_MODE=' "$ENTRY_ENV_PATH" | cut -d'=' -f2-)
+        entry_repo_id=$(grep '^SEAFILE_REPO_ID=' "$ENTRY_ENV_PATH" | cut -d'=' -f2-)
+        cat << EOF
+{
+  "mcpServers": {
+    "$ENTRY_NAME": {
+      "command": "node",
+      "args": ["$INSTALL_DIR/dist/src/index.js"],
+      "env": {
+        "SEAFILE_URL": "$entry_url",
+        "SEAFILE_TOKEN": "$entry_token",
+        "SEAFILE_AUTH_MODE": "$entry_mode",
+        "SEAFILE_REPO_ID": "$entry_repo_id"
+      }
+    }
+  }
+}
+EOF
         echo ""
         echo "Config location: $CLAUDE_CONFIG"
     fi
@@ -304,7 +407,7 @@ print_summary() {
     echo -e "${GREEN}========================================${NC}"
     echo ""
     echo -e "${BLUE}Installation directory:${NC} $INSTALL_DIR"
-    echo -e "${BLUE}Configuration file:${NC} $INSTALL_DIR/.env"
+    echo -e "${BLUE}Profile file:${NC} $ENTRY_ENV_PATH"
     echo ""
     echo "To apply environment variables:"
     echo "  source ~/.zshrc   # or your shell profile"
@@ -317,6 +420,8 @@ print_summary() {
     echo ""
     echo "To update (when available):"
     echo "  cd $INSTALL_DIR && git pull && npm install && npm run build"
+    echo ""
+    echo "To add another named MCP entry later, re-run this installer."
     echo ""
     print_warning "Remember to restart your MCP client (OpenCode/Claude) for changes to take effect."
     echo ""

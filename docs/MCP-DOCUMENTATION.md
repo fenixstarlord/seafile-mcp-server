@@ -28,13 +28,15 @@ OpenWork supports MCP servers through its configuration system. MCP servers are 
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "seafile": {
+    "seafile-vibes": {
       "type": "local", // or "remote" for HTTP servers
       "command": ["npx", "-y", "seafile-mcp-server"],
       "enabled": true,
       "environment": {
-        "SEAFILE_URL": "{env:SEAFILE_URL}",
-        "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}",
+        "SEAFILE_URL": "{env:SEAFILE_VIBES_URL}",
+        "SEAFILE_TOKEN": "{env:SEAFILE_VIBES_TOKEN}",
+        "SEAFILE_AUTH_MODE": "{env:SEAFILE_VIBES_AUTH_MODE}",
+        "SEAFILE_REPO_ID": "{env:SEAFILE_VIBES_REPO_ID}"
       },
       "timeout": 5000,
     },
@@ -278,14 +280,16 @@ Based on Seafile API capabilities:
 4. **upload_file** - Upload a file
 5. **create_folder** - Create a new directory
 6. **get_file_detail** - Get file metadata
-7. **create_share_link** - Create a public share link
-8. **batch_move / batch_copy / batch_delete** - Multi-item operations
+7. **create_share_link** - Account-token mode only
+8. **batch_move / batch_copy / batch_delete** - Batch delete in repo-token mode, full set in account-token mode
 
 ### Environment Variables
 
 ```bash
 SEAFILE_URL=https://your-seafile-server.com
 SEAFILE_TOKEN=your_repo_api_token
+SEAFILE_AUTH_MODE=repo-token
+SEAFILE_REPO_ID=
 ```
 
 ### Configuration in OpenWork
@@ -293,12 +297,14 @@ SEAFILE_TOKEN=your_repo_api_token
 ```jsonc
 {
   "mcp": {
-    "seafile": {
+    "seafile-vibes": {
       "type": "local",
       "command": ["npx", "seafile-mcp-server"],
       "environment": {
-        "SEAFILE_URL": "{env:SEAFILE_URL}",
-        "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}",
+        "SEAFILE_URL": "{env:SEAFILE_VIBES_URL}",
+        "SEAFILE_TOKEN": "{env:SEAFILE_VIBES_TOKEN}",
+        "SEAFILE_AUTH_MODE": "{env:SEAFILE_VIBES_AUTH_MODE}",
+        "SEAFILE_REPO_ID": "{env:SEAFILE_VIBES_REPO_ID}"
       },
     },
   },

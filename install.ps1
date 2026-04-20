@@ -23,10 +23,24 @@ $XdgDataHome = if ($env:XDG_DATA_HOME) { $env:XDG_DATA_HOME } else { "$env:LOCAL
 $XdgConfigHome = if ($env:XDG_CONFIG_HOME) { $env:XDG_CONFIG_HOME } else { "$env:APPDATA" }
 $InstallDir = Join-Path $XdgDataHome "seafile-mcp-server"
 $BackupDir = Join-Path $InstallDir "backups"
+$ProfilesDir = Join-Path $InstallDir "profiles"
 
 # Config paths
 $OpencodeConfig = Join-Path $XdgConfigHome "opencode\opencode.jsonc"
 $ClaudeConfig = Join-Path $env:APPDATA "Claude\claude_desktop_config.json"
+$EntryName = ""
+$EntrySlug = ""
+$EntryEnvPath = ""
+$SeafileAuthMode = "repo-token"
+$SeafileRepoId = ""
+
+function Get-Slug($value) {
+    return (($value.ToLower() -replace '[^a-z0-9]+', '-') -replace '^-+|-+$', '')
+}
+
+function Get-EnvPrefix($value) {
+    return (($value.ToUpper() -replace '[^A-Z0-9]+', '_') -replace '^_+|_+$', '')
+}
 
 function Print-Banner {
     Write-Host ""
@@ -97,6 +111,7 @@ function Setup-Directories {
     
     New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
     New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $ProfilesDir | Out-Null
     New-Item -ItemType Directory -Force -Path (Split-Path $OpencodeConfig -Parent) | Out-Null
     
     Print-Success "Created directories at $InstallDir"
@@ -142,6 +157,20 @@ function Clone-Or-Update-Repo {
 function Prompt-For-Env {
     Print-Info "Configuration"
     Write-Host ""
+
+    do {
+        $script:EntryName = Read-Host "Enter a name for this MCP entry (e.g., seafile-vibes)"
+        if ([string]::IsNullOrWhiteSpace($script:EntryName)) {
+            Print-Error "Entry name cannot be empty"
+        }
+    } while ([string]::IsNullOrWhiteSpace($script:EntryName))
+
+    $script:EntrySlug = Get-Slug $script:EntryName
+    if ([string]::IsNullOrWhiteSpace($script:EntrySlug)) {
+        Print-Error "Entry name must contain letters or numbers"
+        exit 1
+    }
+    $script:EntryEnvPath = Join-Path $ProfilesDir "$EntrySlug.env"
     
     do {
         $seafileUrl = Read-Host "Enter your Seafile server URL (e.g., https://seafile.example.com)"
@@ -151,22 +180,43 @@ function Prompt-For-Env {
     } while ([string]::IsNullOrWhiteSpace($seafileUrl))
     
     do {
-        $seafileToken = Read-Host "Enter your Seafile repo API token"
-        
+        Write-Host "Select auth mode:"
+        Write-Host "  1. Repo token"
+        Write-Host "  2. Account token"
+        $authChoice = Read-Host "Enter choice [1-2]"
+        $script:SeafileAuthMode = if ($authChoice -eq '2') { 'account-token' } else { 'repo-token' }
+    } while ($false)
+
+    do {
+        $tokenPrompt = if ($script:SeafileAuthMode -eq 'account-token') { 'Enter your Seafile account token' } else { 'Enter your Seafile repo API token' }
+        $seafileToken = Read-Host $tokenPrompt
         if ([string]::IsNullOrWhiteSpace($seafileToken)) {
-            Print-Error "Repo API token cannot be empty"
+            Print-Error "Token cannot be empty"
         }
     } while ([string]::IsNullOrWhiteSpace($seafileToken))
+
+    if ($script:SeafileAuthMode -eq 'account-token') {
+        do {
+            $script:SeafileRepoId = Read-Host "Enter the Seafile repo ID to scope this entry"
+            if ([string]::IsNullOrWhiteSpace($script:SeafileRepoId)) {
+                Print-Error "Repo ID cannot be empty in account-token mode"
+            }
+        } while ([string]::IsNullOrWhiteSpace($script:SeafileRepoId))
+    }
     
-    # Save to .env
     $envContent = @"
 SEAFILE_URL=$seafileUrl
 SEAFILE_TOKEN=$seafileToken
+SEAFILE_AUTH_MODE=$script:SeafileAuthMode
 "@
+
+    if (-not [string]::IsNullOrWhiteSpace($script:SeafileRepoId)) {
+        $envContent += "`nSEAFILE_REPO_ID=$script:SeafileRepoId"
+    }
     
-    $envContent | Set-Content (Join-Path $InstallDir ".env") -Encoding UTF8
+    $envContent | Set-Content $script:EntryEnvPath -Encoding UTF8
     
-    Print-Success "Configuration saved to $InstallDir\.env"
+    Print-Success "Configuration saved to $script:EntryEnvPath"
     
     # Clear sensitive variable
     $tokenPlain = $null
@@ -179,24 +229,28 @@ function Configure-Opencode {
     
     try {
         Push-Location $InstallDir
-        npx -y tsx scripts/setup-mcp.ts opencode "$InstallDir" "$OpencodeConfig"
+        npx -y tsx scripts/setup-mcp.ts opencode "$InstallDir" "$OpencodeConfig" "$EntryName" "$EntryEnvPath"
         if ($LASTEXITCODE -eq 0) {
             Print-Success "OpenCode configured successfully"
             
             Print-Info "Adding environment variables to PowerShell profile..."
             
             $shellProfile = $PROFILE
+            $envPrefix = Get-EnvPrefix $EntryName
+            $marker = "# SEAFILE_MCP_SERVER_$envPrefix"
             $envBlock = @"
-# Seafile MCP Server
-`$env:SEAFILE_URL = (Get-Content "$InstallDir\.env" | Select-String 'SEAFILE_URL=') -replace 'SEAFILE_URL=', ''
-`$env:SEAFILE_TOKEN = (Get-Content "$InstallDir\.env" | Select-String 'SEAFILE_TOKEN=') -replace 'SEAFILE_TOKEN=', ''
+$marker
+`$env:SEAFILE_${envPrefix}_URL = (Get-Content "$EntryEnvPath" | Select-String '^SEAFILE_URL=') -replace 'SEAFILE_URL=', ''
+`$env:SEAFILE_${envPrefix}_TOKEN = (Get-Content "$EntryEnvPath" | Select-String '^SEAFILE_TOKEN=') -replace 'SEAFILE_TOKEN=', ''
+`$env:SEAFILE_${envPrefix}_AUTH_MODE = (Get-Content "$EntryEnvPath" | Select-String '^SEAFILE_AUTH_MODE=') -replace 'SEAFILE_AUTH_MODE=', ''
+`$env:SEAFILE_${envPrefix}_REPO_ID = (Get-Content "$EntryEnvPath" | Select-String '^SEAFILE_REPO_ID=') -replace 'SEAFILE_REPO_ID=', ''
 "@
             
             if (-not (Test-Path $shellProfile)) {
                 New-Item -ItemType File -Path $shellProfile -Force | Out-Null
             }
             
-            if (-not (Select-String -Path $shellProfile -Pattern "SEAFILE_MCP_SERVER" -Quiet)) {
+            if (-not (Select-String -Path $shellProfile -Pattern [regex]::Escape($marker) -Quiet)) {
                 Add-Content -Path $shellProfile -Value "`n$envBlock"
                 Print-Success "Added env export to $shellProfile"
                 Print-Info "Run 'Reload-Profile' or restart your terminal to apply"
@@ -213,15 +267,18 @@ function Configure-Opencode {
         Write-Host ""
         Print-Warning "Manual configuration required:"
         Write-Host "Add the following to your opencode.jsonc file:"
+        $envPrefix = Get-EnvPrefix $EntryName
         Write-Host @"
 {
   "mcp": {
-    "seafile": {
+    "$EntryName": {
       "type": "local",
       "command": ["node", "$escapedInstallDir\dist\src\index.js"],
       "environment": {
-        "SEAFILE_URL": "{env:SEAFILE_URL}",
-        "SEAFILE_TOKEN": "{env:SEAFILE_TOKEN}"
+        "SEAFILE_URL": "{env:SEAFILE_${envPrefix}_URL}",
+        "SEAFILE_TOKEN": "{env:SEAFILE_${envPrefix}_TOKEN}",
+        "SEAFILE_AUTH_MODE": "{env:SEAFILE_${envPrefix}_AUTH_MODE}",
+        "SEAFILE_REPO_ID": "{env:SEAFILE_${envPrefix}_REPO_ID}"
       }
     }
   }
@@ -239,7 +296,7 @@ function Configure-Claude {
     
     try {
         Push-Location $InstallDir
-        npx -y tsx scripts/setup-mcp.ts claude "$InstallDir" "$ClaudeConfig"
+        npx -y tsx scripts/setup-mcp.ts claude "$InstallDir" "$ClaudeConfig" "$EntryName" "$EntryEnvPath"
         if ($LASTEXITCODE -eq 0) {
             Print-Success "Claude Code configured successfully"
         } else {
@@ -252,15 +309,21 @@ function Configure-Claude {
         Write-Host ""
         Print-Warning "Manual configuration required:"
         Write-Host "Add the following to your claude_desktop_config.json file:"
+        $entryEnv = @{}
+        Get-Content $EntryEnvPath | ForEach-Object {
+            if ($_ -match '^(?<key>[^=]+)=(?<value>.*)$') { $entryEnv[$matches.key] = $matches.value }
+        }
         Write-Host @"
 {
   "mcpServers": {
-    "seafile": {
+    "$EntryName": {
       "command": "node",
       "args": ["$escapedInstallDir\dist\src\index.js"],
       "env": {
-        "SEAFILE_URL": "$seafileUrl",
-        "SEAFILE_TOKEN": "$seafileToken"
+        "SEAFILE_URL": "$($entryEnv['SEAFILE_URL'])",
+        "SEAFILE_TOKEN": "$($entryEnv['SEAFILE_TOKEN'])",
+        "SEAFILE_AUTH_MODE": "$($entryEnv['SEAFILE_AUTH_MODE'])",
+        "SEAFILE_REPO_ID": "$($entryEnv['SEAFILE_REPO_ID'])"
       }
     }
   }
@@ -298,7 +361,7 @@ function Print-Summary {
     Write-Host "$Green========================================$Reset"
     Write-Host ""
     Write-Host "$Blue Installation directory:$Reset $InstallDir"
-    Write-Host "$Blue Configuration file:$Reset $InstallDir\.env"
+    Write-Host "$Blue Profile file:$Reset $EntryEnvPath"
     Write-Host ""
     Write-Host "To start the server:"
     Write-Host "  cd '$InstallDir' ; npm run start"
@@ -308,6 +371,8 @@ function Print-Summary {
     Write-Host ""
     Write-Host "To update (when available):"
     Write-Host "  cd '$InstallDir' ; git pull ; npm install ; npm run build"
+    Write-Host ""
+    Write-Host "To add another named MCP entry later, re-run this installer."
     Write-Host ""
     Print-Warning "Remember to restart your MCP client (OpenCode/Claude) for changes to take effect."
     Write-Host ""

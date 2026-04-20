@@ -4,7 +4,15 @@ import { seafileRequest, seafileRequestText } from '../seafile.js';
 import { PathSchema, ParentPathSchema, FilenameSchema, type DirEntry } from '../types.js';
 import { validatePath, validateContentSize } from '../utils/validation.js';
 import { loadConfig } from '../config.js';
-import { API_ENDPOINTS, PAGINATION_DEFAULTS } from '../constants.js';
+import { API_ENDPOINTS, PAGINATION_DEFAULTS, buildEndpoint } from '../constants.js';
+
+function parseQuotedText(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return JSON.parse(trimmed) as string;
+  }
+  return trimmed;
+}
 
 /** Maximum upload size in bytes (100MB) */
 const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
@@ -34,6 +42,10 @@ const UPLOAD_TIMEOUT = 5 * 60 * 1000;
  * ```
  */
 export function registerFileTools(server: McpServer) {
+  const config = loadConfig();
+  const isAccountToken = config.SEAFILE_AUTH_MODE === 'account-token';
+  const repoId = config.SEAFILE_REPO_ID;
+
   /**
    * Tool: list_files
    *
@@ -81,11 +93,24 @@ export function registerFileTools(server: McpServer) {
       per_page: number;
     }) => {
       const validatedPath = validatePath(path);
-      const items = await seafileRequest<DirEntry[]>(
-        `${API_ENDPOINTS.REPO_TOKEN.DIR}/?p=${encodeURIComponent(validatedPath)}&page=${page}&per_page=${per_page}`
-      );
+      const result = isAccountToken
+        ? await seafileRequest<DirEntry[]>(
+            `${buildEndpoint(API_ENDPOINTS.ACCOUNT.DIR, { id: repoId! })}/?p=${encodeURIComponent(validatedPath)}&page=${page}&per_page=${per_page}`
+          )
+        : await seafileRequest<{ dirent_list: DirEntry[] }>(
+            `${API_ENDPOINTS.REPO_TOKEN.DIR}/?path=${encodeURIComponent(validatedPath)}&page=${page}&per_page=${per_page}`
+          );
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify(items, null, 2) }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              isAccountToken ? result : (result as { dirent_list: DirEntry[] }).dirent_list ?? [],
+              null,
+              2
+            ),
+          },
+        ],
       };
     }
   );
@@ -110,8 +135,12 @@ export function registerFileTools(server: McpServer) {
     },
     async ({ path }: { path: string }) => {
       const validatedPath = validatePath(path);
-      const downloadLink = await seafileRequestText(
-        `${API_ENDPOINTS.REPO_TOKEN.DOWNLOAD_LINK}/?p=${encodeURIComponent(validatedPath)}`
+      const downloadLink = parseQuotedText(
+        await seafileRequestText(
+          isAccountToken
+            ? `${buildEndpoint(API_ENDPOINTS.ACCOUNT.FILE_DOWNLOAD, { id: repoId! })}/?p=${encodeURIComponent(validatedPath)}`
+            : `${API_ENDPOINTS.REPO_TOKEN.DOWNLOAD_LINK}/?path=${encodeURIComponent(validatedPath)}`
+        )
       );
       return {
         content: [
@@ -142,7 +171,9 @@ export function registerFileTools(server: McpServer) {
     async ({ path }: { path: string }) => {
       const validatedPath = validatePath(path);
       const detail = await seafileRequest<Record<string, unknown>>(
-        `${API_ENDPOINTS.REPO_TOKEN.FILE}/?p=${encodeURIComponent(validatedPath)}`
+        isAccountToken
+          ? `${buildEndpoint(API_ENDPOINTS.ACCOUNT.FILE_DETAIL, { id: repoId! })}/?p=${encodeURIComponent(validatedPath)}`
+          : `${API_ENDPOINTS.REPO_TOKEN.FILE}/?path=${encodeURIComponent(validatedPath)}`
       );
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(detail, null, 2) }],
@@ -200,7 +231,13 @@ export function registerFileTools(server: McpServer) {
       validateContentSize(content, MAX_UPLOAD_SIZE);
 
       const validatedPath = validatePath(path);
-      const uploadLink = await seafileRequestText(`${API_ENDPOINTS.REPO_TOKEN.UPLOAD_LINK}/`);
+      const uploadLink = parseQuotedText(
+        await seafileRequestText(
+          isAccountToken
+            ? `${buildEndpoint(API_ENDPOINTS.ACCOUNT.UPLOAD_LINK, { id: repoId! })}/?p=${encodeURIComponent(validatedPath)}`
+            : `${API_ENDPOINTS.REPO_TOKEN.UPLOAD_LINK}/?path=${encodeURIComponent(validatedPath)}`
+        )
+      );
 
       let fileBuffer: Buffer;
       if (content.startsWith('base64:')) {
@@ -229,7 +266,10 @@ export function registerFileTools(server: McpServer) {
         );
       }
 
-      const result = (await uploadResponse.json()) as Record<string, unknown>;
+      const responseText = await uploadResponse.text();
+      const result = responseText.trim().startsWith('{')
+        ? ((JSON.parse(responseText) as Record<string, unknown>) ?? {})
+        : { file_id: parseQuotedText(responseText) };
       return {
         content: [
           {
@@ -265,11 +305,12 @@ export function registerFileTools(server: McpServer) {
     },
     async ({ path }: { path: string }) => {
       const validatedPath = validatePath(path);
-      await seafileRequest(`${API_ENDPOINTS.REPO_TOKEN.FILE}/`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ p: validatedPath }).toString(),
-      });
+      await seafileRequest(
+        isAccountToken
+          ? `${buildEndpoint(API_ENDPOINTS.ACCOUNT.FILE_OPERATIONS, { id: repoId! })}/?p=${encodeURIComponent(validatedPath)}`
+          : `${API_ENDPOINTS.REPO_TOKEN.FILE}/?path=${encodeURIComponent(validatedPath)}`,
+        { method: 'DELETE' }
+      );
       return {
         content: [
           {

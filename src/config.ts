@@ -3,11 +3,21 @@ import { z } from 'zod';
 /**
  * Configuration schema using Zod for environment variable validation
  * @property SEAFILE_URL - The Seafile server URL (must be a valid URL)
- * @property SEAFILE_TOKEN - The repo API token for Seafile library access
+ * @property SEAFILE_TOKEN - The Seafile auth token for the selected auth mode
  */
 const ConfigSchema = z.object({
   SEAFILE_URL: z.string().url().min(1),
   SEAFILE_TOKEN: z.string().min(1),
+  SEAFILE_AUTH_MODE: z.enum(['repo-token', 'account-token']).default('repo-token'),
+  SEAFILE_REPO_ID: z.string().uuid().optional(),
+}).superRefine((value, ctx) => {
+  if (value.SEAFILE_AUTH_MODE === 'account-token' && !value.SEAFILE_REPO_ID) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'SEAFILE_REPO_ID is required when SEAFILE_AUTH_MODE=account-token',
+      path: ['SEAFILE_REPO_ID'],
+    });
+  }
 });
 
 /**
@@ -21,7 +31,7 @@ export type Config = z.infer<typeof ConfigSchema>;
  * Reads SEAFILE_URL and SEAFILE_TOKEN from process.env, trims whitespace,
  * and validates against the ConfigSchema using Zod.
  *
- * @returns Validated configuration object with SEAFILE_URL and SEAFILE_TOKEN
+ * @returns Validated configuration object with auth settings
  * @throws {ConfigError} If validation fails (missing or invalid environment variables)
  *
  * @example
@@ -33,10 +43,14 @@ export type Config = z.infer<typeof ConfigSchema>;
 export function loadConfig(): Config {
   const url = process.env.SEAFILE_URL?.trim();
   const token = process.env.SEAFILE_TOKEN?.trim();
+  const authMode = process.env.SEAFILE_AUTH_MODE?.trim() || 'repo-token';
+  const repoId = process.env.SEAFILE_REPO_ID?.trim();
 
   const result = ConfigSchema.safeParse({
     SEAFILE_URL: url,
     SEAFILE_TOKEN: token,
+    SEAFILE_AUTH_MODE: authMode,
+    SEAFILE_REPO_ID: repoId,
   });
 
   if (!result.success) {
