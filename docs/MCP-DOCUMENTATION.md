@@ -136,11 +136,10 @@ server.registerTool(
   {
     description: 'List files in a Seafile directory',
     inputSchema: {
-      repoId: z.string(),
       path: z.string().optional().default('/'),
     },
   },
-  async ({ repoId, path }) => {
+  async ({ path }) => {
     // Tool implementation
     return { content: [{ type: 'text', text: JSON.stringify(files) }] };
   }
@@ -199,11 +198,6 @@ async def list_files(repo_id: str, path: str = "/") -> str:
     """List files in a Seafile directory"""
     # Tool implementation
     return json.dumps(files)
-
-@mcp.resource("seafile://repos")
-def get_repos() -> str:
-    """Get list of repositories"""
-    return json.dumps(repos)
 
 @mcp.prompt()
 def file_search(query: str) -> str:
@@ -278,22 +272,20 @@ This comprehensive reference includes:
 
 Based on Seafile API capabilities:
 
-1. **list_repos** - List all repositories
+1. **get_repo_info** - Get the current repo-token repository metadata
 2. **list_files** - List files in a directory
-3. **get_file** - Download a file
+3. **get_file** - Get a download link for a file
 4. **upload_file** - Upload a file
 5. **create_folder** - Create a new directory
-6. **search_files** - Search for files by name
-7. **get_file_info** - Get file metadata
-8. **share_file** - Share a file/folder
-9. **list_shared** - List shared items
+6. **get_file_detail** - Get file metadata
+7. **create_share_link** - Create a public share link
+8. **batch_move / batch_copy / batch_delete** - Multi-item operations
 
 ### Environment Variables
 
 ```bash
 SEAFILE_URL=https://your-seafile-server.com
-SEAFILE_TOKEN=your_api_token
-SEAFILE_REPO_ID=default_repo_id  # optional
+SEAFILE_TOKEN=your_repo_api_token
 ```
 
 ### Configuration in OpenWork

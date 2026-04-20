@@ -73,7 +73,7 @@ When extending the MCP server, follow this workflow:
 
 Use clear, action-oriented names:
 
-- `list_repos` not `getAllRepositories`
+- `list_files` not `getAllFiles`
 - `upload_file` not `fileUpload`
 - `create_folder` not `makeDirectory`
 
@@ -106,9 +106,9 @@ The `seafileRequest` helper in `src/seafile.ts` already includes the endpoint an
 
 Always include annotations on new tools:
 
-- `readOnlyHint: true` for read operations (list*\*, get*_, search\__)
+- `readOnlyHint: true` for read operations (list*\*, get*\_)
 - `destructiveHint: true` for delete operations (delete\_\*)
-- `idempotentHint: true` for safe retries (star_item, unstar_item)
+- `idempotentHint: false` for mutating operations that are not guaranteed safe to retry
 
 Example:
 
@@ -171,7 +171,6 @@ Key endpoints from `docs/seafile-api-reference.md`:
 ### Account
 
 - `GET /api2/server-info/` - Server info
-- `GET /api2/account/info/` - Account info
 
 ---
 
@@ -179,19 +178,18 @@ Key endpoints from `docs/seafile-api-reference.md`:
 
 ### Tools (`src/tools/`)
 
-| Module           | Tools                                                                                        |
-| ---------------- | -------------------------------------------------------------------------------------------- |
-| `repos.ts`       | `list_repos`, `get_repo_info`, `create_repo`, `delete_repo`                                  |
-| `files.ts`       | `list_files`, `get_file`, `get_file_detail`, `upload_file`, `delete_file`                    |
-| `directories.ts` | `create_folder`, `delete_folder`, `rename_item`, `move_item`, `copy_item`                    |
-| `search.ts`      | `search_files`                                                                               |
-| `sharing.ts`     | `create_share_link`, `list_share_links`, `delete_share_link`, `share_to_user`, `list_shared` |
-| `starred.ts`     | `list_starred`, `star_item`, `unstar_item`                                                   |
-| `account.ts`     | `get_server_info`, `get_account_info`                                                        |
+| Module           | Tools                                                                     |
+| ---------------- | ------------------------------------------------------------------------- |
+| `repos.ts`       | `get_repo_info`                                                           |
+| `files.ts`       | `list_files`, `get_file`, `get_file_detail`, `upload_file`, `delete_file` |
+| `directories.ts` | `create_folder`, `delete_folder`, `rename_item`, `move_item`, `copy_item` |
+| `batch.ts`       | `batch_delete`, `batch_copy`, `batch_move`                                |
+| `sharing.ts`     | `create_share_link`                                                       |
+| `account.ts`     | `get_server_info`                                                         |
 
 ### Resources (`src/resources.ts`)
 
-- `seafile://repos` - Repository list resource
+- No resources are currently registered
 
 ### Shared Modules
 
@@ -206,12 +204,9 @@ Potential future additions:
 
 1. **get_file_history** - Get file revision history (`GET /api/v2.1/repos/{id}/file/history/`)
 2. **lock_file / unlock_file** - Lock/unlock file for editing (`PUT /api/v2.1/repos/{id}/file/`)
-3. **batch_delete** - Batch delete items (`DELETE /api/v2.1/repos/batch-delete-item/`)
-4. **batch_copy / batch_move** - Batch operations
-5. **create_repo** (encrypted) - Support encrypted library creation
-6. **get_repo_history** - Library history and commits
-7. **file_comments** - List/add file comments
-8. **list_share_links** filtering - Filter by repo, path
+3. **get_repo_history** - Library history and commits
+4. **file_comments** - List/add file comments
+5. **repo-token metadata** - Views, tags, and records under via-repo-token
 
 > **Note:** Keep README.md tool tables in sync with the implementation.
 

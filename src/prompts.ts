@@ -2,59 +2,6 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
 export function registerPrompts(server: McpServer) {
-  // File search prompt - Guides user to search for files
-  server.registerPrompt(
-    'file_search_prompt',
-    {
-      description:
-        'Guides the user through searching for files in Seafile. Helps construct effective search queries and understand search options.',
-      argsSchema: {
-        query: z.string().describe('The search query or file name pattern to look for'),
-        repo_id: z
-          .string()
-          .optional()
-          .describe('Optional: Repository ID to limit the search to a specific library'),
-        search_path: z
-          .string()
-          .optional()
-          .describe(
-            'Optional: Path within a repository to scope the search (e.g., /Documents/Projects)'
-          ),
-      },
-    },
-    (args: { query: string; repo_id?: string; search_path?: string }) => {
-      const { query, repo_id, search_path } = args;
-      const scopeInfo = repo_id
-        ? ` in repository ${repo_id}${search_path ? ` under path "${search_path}"` : ''}`
-        : ' across all accessible libraries';
-
-      return {
-        messages: [
-          {
-            role: 'user',
-            content: {
-              type: 'text',
-              text: `I want to search for files with the query "${query}"${scopeInfo}. Please help me find these files.
-
-Use the search_files tool to perform this search. Here's what you need to know:
-
-1. The query parameter is the search term (required)
-2. If repo_id is provided, the search will be limited to that library
-3. If search_path is provided (along with repo_id), the search will be limited to that specific folder
-
-Please execute the search and show me the results with relevant file information including:
-- File names and paths
-- Which library each file is in
-- Any other relevant metadata
-
-If no files are found, suggest alternative search terms or broader search criteria.`,
-            },
-          },
-        ],
-      };
-    }
-  );
-
   // Upload workflow prompt - Step-by-step upload guide
   server.registerPrompt(
     'upload_workflow_prompt',
@@ -68,12 +15,11 @@ If no files are found, suggest alternative search terms or broader search criter
           .describe(
             'File content (plain text or base64-encoded binary data with "base64:" prefix)'
           ),
-        repo_id: z.string().describe('Repository ID where the file should be uploaded'),
         path: z.string().optional().describe('Destination directory path (default: /)'),
       },
     },
-    (args: { filename: string; content: string; repo_id: string; path?: string }) => {
-      const { filename, content, repo_id, path = '/' } = args;
+    (args: { filename: string; content: string; path?: string }) => {
+      const { filename, content, path = '/' } = args;
       return {
         messages: [
           {
@@ -83,11 +29,9 @@ If no files are found, suggest alternative search terms or broader search criter
               text: `I want to upload a file named "${filename}" to Seafile. Please guide me through the upload process.
 
 Target location:
-- Repository: ${repo_id}
 - Directory: ${path}
 
 Please perform the upload using the upload_file tool with these parameters:
-- repo_id: "${repo_id}"
 - path: "${path}"
 - filename: "${filename}"
 - content: [The file content provided]
@@ -112,24 +56,9 @@ Please execute the upload and confirm:
   server.registerPrompt(
     'share_item_prompt',
     {
-      description:
-        'Helps the user share files or folders in Seafile, either via public share links or with specific users/groups.',
+      description: 'Helps the user share files or folders in Seafile via a public share link.',
       argsSchema: {
-        repo_id: z.string().describe('Repository ID containing the item to share'),
         path: z.string().describe('Path to the file or folder to share'),
-        share_type: z
-          .enum(['link', 'user', 'group'])
-          .describe(
-            'Type of sharing: "link" for public share link, "user" for sharing with a user, or "group" for sharing with a group'
-          ),
-        username: z
-          .string()
-          .optional()
-          .describe('Email address of the user to share with (required if share_type is "user")'),
-        permission: z
-          .enum(['r', 'rw'])
-          .optional()
-          .describe('Permission level: "r" for read-only or "rw" for read-write (default: "r")'),
         password: z
           .string()
           .optional()
@@ -142,58 +71,22 @@ Please execute the upload and confirm:
           ),
       },
     },
-    (args: {
-      repo_id: string;
-      path: string;
-      share_type: 'link' | 'user' | 'group';
-      username?: string;
-      permission?: 'r' | 'rw';
-      password?: string;
-      expire_days?: number;
-    }) => {
-      const { repo_id, path, share_type, username, permission = 'r', password, expire_days } = args;
-      let instructions = '';
-      let toolName = '';
-
-      if (share_type === 'link') {
-        toolName = 'create_share_link';
-        instructions = `Use the create_share_link tool with:
-- repo_id: "${repo_id}"
+    (args: { path: string; password?: string; expire_days?: number }) => {
+      const { path, password, expire_days } = args;
+      const instructions = `Use the create_share_link tool with:
 - path: "${path}"${
-          password
-            ? `
+        password
+          ? `
 - password: "${password}"`
-            : ''
-        }${
-          expire_days !== undefined
-            ? `
+          : ''
+      }${
+        expire_days !== undefined
+          ? `
 - expire_days: ${expire_days}`
-            : ''
-        }
+          : ''
+      }
 
 This will generate a public share link that can be accessed by anyone with the link.`;
-      } else if (share_type === 'user') {
-        toolName = 'share_to_user';
-        const userInfo = username ? `user "${username}"` : 'the specified user';
-        instructions = `Use the share_to_user tool with:
-- repo_id: "${repo_id}"
-- share_type: "user"
-- username: "${username || '[email address]'}",
-- path: "${path}"
-- permission: "${permission}"
-
-This will share the item with ${userInfo} with ${permission === 'rw' ? 'read-write' : 'read-only'} permissions.`;
-      } else if (share_type === 'group') {
-        toolName = 'share_to_user';
-        instructions = `Use the share_to_user tool with:
-- repo_id: "${repo_id}"
-- share_type: "group"
-- group_id: [group ID number]
-- path: "${path}"
-- permission: "${permission}"
-
-This will share the item with the specified group with ${permission === 'rw' ? 'read-write' : 'read-only'} permissions.`;
-      }
 
       return {
         messages: [
@@ -202,9 +95,8 @@ This will share the item with the specified group with ${permission === 'rw' ? '
             content: {
               type: 'text',
               text: `I want to share an item in Seafile:
-- Location: repository "${repo_id}", path "${path}"
-- Share type: ${share_type}
-${share_type === 'link' ? (password ? '- Password protected: Yes\n' : '') + (expire_days ? `- Expires after: ${expire_days} days\n` : '') : `- Permission level: ${permission === 'rw' ? 'Read-Write' : 'Read-Only'}\n`}
+- Path: "${path}"
+${password ? '- Password protected: Yes\n' : ''}${expire_days ? `- Expires after: ${expire_days} days\n` : ''}
 
 Please help me share this item.
 
@@ -212,8 +104,8 @@ ${instructions}
 
 After completing the share operation, please provide:
 - Confirmation that the share was created successfully
-${share_type === 'link' ? '- The share link URL\n- Any password or expiration details' : '- Details about who the item was shared with'}
-- The permission level granted`,
+- The share link URL
+- Any password or expiration details`,
             },
           },
         ],

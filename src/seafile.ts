@@ -94,10 +94,28 @@ function isRetryableError(error: unknown, status?: number): boolean {
       message.includes('network') ||
       message.includes('timeout') ||
       message.includes('econnrefused') ||
-      message.includes('ENOTFOUND')
+      message.includes('enotfound')
     );
   }
   return false;
+}
+
+async function parseJsonResponse<T>(response: Response): Promise<T> {
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const contentLength = response.headers.get('content-length');
+  if (contentLength === '0') {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+  if (text.trim() === '') {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
 }
 
 /**
@@ -179,7 +197,7 @@ async function makeRequest<T>(
       }
 
       if (expectJson) {
-        return response.json() as Promise<T>;
+        return parseJsonResponse<T>(response);
       }
       return response.text() as Promise<T>;
     } catch (error) {

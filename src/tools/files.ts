@@ -1,16 +1,10 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { seafileRequest, seafileRequestText } from '../seafile.js';
-import {
-  RepoIdSchema,
-  PathSchema,
-  ParentPathSchema,
-  FilenameSchema,
-  type DirEntry,
-} from '../types.js';
+import { PathSchema, ParentPathSchema, FilenameSchema, type DirEntry } from '../types.js';
 import { validatePath, validateContentSize } from '../utils/validation.js';
 import { loadConfig } from '../config.js';
-import { API_ENDPOINTS, PAGINATION_DEFAULTS, buildEndpoint } from '../constants.js';
+import { API_ENDPOINTS, PAGINATION_DEFAULTS } from '../constants.js';
 
 /** Maximum upload size in bytes (100MB) */
 const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
@@ -46,7 +40,6 @@ export function registerFileTools(server: McpServer) {
    * Lists files and directories in a specified Seafile directory path.
    * Supports pagination for large directories.
    *
-   * @param repo_id - Repository ID containing the directory
    * @param path - Directory path (default: /)
    * @param page - Page number for pagination (default: 1)
    * @param per_page - Items per page (default: 100, max: 1000)
@@ -57,7 +50,6 @@ export function registerFileTools(server: McpServer) {
     {
       description: 'List files and directories in a Seafile directory',
       inputSchema: {
-        repo_id: RepoIdSchema,
         path: PathSchema.optional().default('/').describe('Directory path (default: /)'),
         page: z
           .number()
@@ -80,20 +72,17 @@ export function registerFileTools(server: McpServer) {
       annotations: { readOnlyHint: true },
     },
     async ({
-      repo_id,
       path = '/',
       page = PAGINATION_DEFAULTS.PAGE,
       per_page = PAGINATION_DEFAULTS.PER_PAGE,
     }: {
-      repo_id: string;
       path: string;
       page: number;
       per_page: number;
     }) => {
       const validatedPath = validatePath(path);
-      const endpoint = buildEndpoint(API_ENDPOINTS.V2.DIR, { id: repo_id });
       const items = await seafileRequest<DirEntry[]>(
-        `${endpoint}/?p=${encodeURIComponent(validatedPath)}&page=${page}&per_page=${per_page}`
+        `${API_ENDPOINTS.REPO_TOKEN.DIR}/?p=${encodeURIComponent(validatedPath)}&page=${page}&per_page=${per_page}`
       );
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(items, null, 2) }],
@@ -107,7 +96,6 @@ export function registerFileTools(server: McpServer) {
    * Retrieves a temporary download link for a file.
    * The link is valid for a limited time and can be used to download the file content.
    *
-   * @param repo_id - Repository ID containing the file
    * @param path - File path (e.g., /Documents/report.txt)
    * @returns Object containing the download_link URL
    */
@@ -116,16 +104,14 @@ export function registerFileTools(server: McpServer) {
     {
       description: 'Get a download link for a file in Seafile',
       inputSchema: {
-        repo_id: RepoIdSchema,
         path: PathSchema.describe('File path (e.g. /Documents/report.txt)'),
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ repo_id, path }: { repo_id: string; path: string }) => {
+    async ({ path }: { path: string }) => {
       const validatedPath = validatePath(path);
-      const endpoint = buildEndpoint(API_ENDPOINTS.V2.FILE_DOWNLOAD, { id: repo_id });
       const downloadLink = await seafileRequestText(
-        `${endpoint}/?p=${encodeURIComponent(validatedPath)}`
+        `${API_ENDPOINTS.REPO_TOKEN.DOWNLOAD_LINK}/?p=${encodeURIComponent(validatedPath)}`
       );
       return {
         content: [
@@ -141,7 +127,6 @@ export function registerFileTools(server: McpServer) {
    * Gets detailed metadata for a file including size, modification date,
    * MIME type, and other properties.
    *
-   * @param repo_id - Repository ID containing the file
    * @param path - File path
    * @returns Object with file metadata
    */
@@ -150,16 +135,14 @@ export function registerFileTools(server: McpServer) {
     {
       description: 'Get detailed metadata for a file (size, modified date, etc.)',
       inputSchema: {
-        repo_id: RepoIdSchema,
         path: PathSchema.describe('File path'),
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ repo_id, path }: { repo_id: string; path: string }) => {
+    async ({ path }: { path: string }) => {
       const validatedPath = validatePath(path);
-      const endpoint = buildEndpoint(API_ENDPOINTS.V2.FILE_DETAIL, { id: repo_id });
       const detail = await seafileRequest<Record<string, unknown>>(
-        `${endpoint}/?p=${encodeURIComponent(validatedPath)}`
+        `${API_ENDPOINTS.REPO_TOKEN.FILE}/?p=${encodeURIComponent(validatedPath)}`
       );
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(detail, null, 2) }],
@@ -176,7 +159,6 @@ export function registerFileTools(server: McpServer) {
    *
    * Maximum file size: 100MB
    *
-   * @param repo_id - Repository ID to upload to
    * @param path - Parent directory path (e.g., /Documents)
    * @param filename - Name for the uploaded file
    * @param content - File content (text or base64: prefixed)
@@ -207,32 +189,18 @@ export function registerFileTools(server: McpServer) {
       description:
         'Upload a file to Seafile. Content is treated as UTF-8 text by default, or prefix with "base64:" for binary data.',
       inputSchema: {
-        repo_id: RepoIdSchema,
         path: ParentPathSchema.describe('Parent directory path (e.g. /Documents)'),
         filename: FilenameSchema,
         content: z.string().describe('File content. Plain text or base64: prefix for binary'),
       },
       annotations: { idempotentHint: false },
     },
-    async ({
-      repo_id,
-      path,
-      filename,
-      content,
-    }: {
-      repo_id: string;
-      path: string;
-      filename: string;
-      content: string;
-    }) => {
+    async ({ path, filename, content }: { path: string; filename: string; content: string }) => {
       // Validate content size
       validateContentSize(content, MAX_UPLOAD_SIZE);
 
       const validatedPath = validatePath(path);
-      const uploadEndpoint = buildEndpoint(API_ENDPOINTS.V2.UPLOAD_LINK, { id: repo_id });
-      const uploadLink = await seafileRequestText(
-        `${uploadEndpoint}/?p=${encodeURIComponent(validatedPath)}`
-      );
+      const uploadLink = await seafileRequestText(`${API_ENDPOINTS.REPO_TOKEN.UPLOAD_LINK}/`);
 
       let fileBuffer: Buffer;
       if (content.startsWith('base64:')) {
@@ -256,7 +224,7 @@ export function registerFileTools(server: McpServer) {
 
       if (!uploadResponse.ok) {
         throw new Error(
-          `Failed to upload file "${filename}" to repo ${repo_id}: ` +
+          `Failed to upload file "${filename}": ` +
             `${uploadResponse.status} ${uploadResponse.statusText}. ${uploadResponse.status === 401 ? 'Check SEAFILE_TOKEN is valid.' : 'Check the upload link and try again.'}`
         );
       }
@@ -283,7 +251,6 @@ export function registerFileTools(server: McpServer) {
    * Permanently deletes a file from Seafile.
    * WARNING: This operation cannot be undone.
    *
-   * @param repo_id - Repository ID containing the file
    * @param path - File path to delete
    * @returns Success confirmation with deleted file details
    */
@@ -292,15 +259,13 @@ export function registerFileTools(server: McpServer) {
     {
       description: 'Delete a file from Seafile permanently',
       inputSchema: {
-        repo_id: RepoIdSchema,
         path: PathSchema.describe('File path to delete'),
       },
       annotations: { destructiveHint: true },
     },
-    async ({ repo_id, path }: { repo_id: string; path: string }) => {
+    async ({ path }: { path: string }) => {
       const validatedPath = validatePath(path);
-      const endpoint = buildEndpoint(API_ENDPOINTS.V2_1.FILE_OPERATIONS, { id: repo_id });
-      await seafileRequest(endpoint, {
+      await seafileRequest(`${API_ENDPOINTS.REPO_TOKEN.FILE}/`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ p: validatedPath }).toString(),
@@ -309,7 +274,7 @@ export function registerFileTools(server: McpServer) {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify({ success: true, repo_id, path: validatedPath }),
+            text: JSON.stringify({ success: true, path: validatedPath }),
           },
         ],
       };

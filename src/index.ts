@@ -3,9 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { registerRepoTools } from './tools/repos.js';
 import { registerFileTools } from './tools/files.js';
 import { registerDirectoryTools } from './tools/directories.js';
-import { registerSearchTools } from './tools/search.js';
 import { registerSharingTools } from './tools/sharing.js';
-import { registerStarredTools } from './tools/starred.js';
 import { registerAccountTools } from './tools/account.js';
 import { registerBatchTools } from './tools/batch.js';
 import { registerPrompts } from './prompts.js';
@@ -58,9 +56,7 @@ const server = new McpServer({
 registerRepoTools(server);
 registerFileTools(server);
 registerDirectoryTools(server);
-registerSearchTools(server);
 registerSharingTools(server);
-registerStarredTools(server);
 registerAccountTools(server);
 registerBatchTools(server);
 

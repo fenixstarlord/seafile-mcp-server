@@ -71,7 +71,7 @@ export class ConfigError extends Error {
 
 /**
  * Repository information interface
- * Represents a Seafile library/repository with its metadata
+ * Represents the active repo-token repository and its metadata
  *
  * @property id - Unique repository ID (UUID format)
  * @property name - Display name of the repository
@@ -135,7 +135,7 @@ export interface FileDetail {
  * Zod schema for repository ID validation
  * Used for tool input validation
  */
-export const RepoIdSchema = z.string().describe('Repository ID');
+export const RepoIdSchema = z.string().uuid().describe('Repository ID');
 
 /**
  * Zod schema for file/directory path validation

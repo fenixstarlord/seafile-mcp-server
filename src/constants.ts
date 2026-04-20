@@ -24,22 +24,17 @@
  * Endpoints with {id} placeholders must be resolved using buildEndpoint()
  */
 export const API_ENDPOINTS = {
-  V2: {
-    REPOS: '/api2/repos',
-    DIR: '/api2/repos/{id}/dir',
-    FILE_DOWNLOAD: '/api2/repos/{id}/file',
-    FILE_DETAIL: '/api2/repos/{id}/file/detail',
-    UPLOAD_LINK: '/api2/repos/{id}/upload-link',
+  PUBLIC: {
     SERVER_INFO: '/api2/server-info',
-    ACCOUNT_INFO: '/api2/account/info',
-    BESHARED_REPOS: '/api2/beshared-repos',
-    SHARED_ITEMS: '/api2/repos/{id}/dir/shared_items',
   },
-  V2_1: {
-    FILE_OPERATIONS: '/api/v2.1/repos/{id}/file',
-    SEARCH: '/api/v2.1/search/file',
-    SHARE_LINKS: '/api/v2.1/share-links',
-    STARRED: '/api/v2.1/starred-items',
+  REPO_TOKEN: {
+    DIR: '/api/v2.1/via-repo-token/dir',
+    FILE: '/api/v2.1/via-repo-token/file',
+    MOVE_DIR: '/api/v2.1/via-repo-token/move-dir',
+    UPLOAD_LINK: '/api/v2.1/via-repo-token/upload-link',
+    DOWNLOAD_LINK: '/api/v2.1/via-repo-token/download-link',
+    REPO_INFO: '/api/v2.1/via-repo-token/repo-info',
+    SHARE_LINKS: '/api/v2.1/via-repo-token/share-links',
   },
 } as const;
 

@@ -20,13 +20,10 @@ Add parameters:
 - `page` (optional, default 1)
 - `per_page` (optional, default 100, max 1000)
 
-**Update:** `src/tools/repos.ts` - `list_repos`
-Add same pagination parameters
+**Update:** `src/tools/files.ts` - `list_files`
+Keep pagination parameters in sync with the repo-token directory endpoint.
 
-**Update:** `src/tools/search.ts` - `search_files`
-Add pagination parameters
-
-**API endpoints support:** `/api2/repos/{id}/dir/?p={path}&page={page}&per_page={per_page}`
+**API endpoints support:** `/api/v2.1/via-repo-token/dir/?p={path}&page={page}&per_page={per_page}`
 
 ### Task 2: Standardize API Version Usage (Phase 3.5)
 

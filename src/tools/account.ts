@@ -5,9 +5,7 @@ import { API_ENDPOINTS } from '../constants.js';
 /**
  * Registers account-related tools with the MCP server
  *
- * Provides tools for retrieving account and server information:
- * - get_server_info: Get Seafile server version and configuration
- * - get_account_info: Get authenticated user's account information
+ * Provides tools for retrieving public server information.
  *
  * @param server - The MCP server instance to register tools with
  *
@@ -38,32 +36,7 @@ export function registerAccountTools(server: McpServer) {
     },
     async () => {
       const info = await seafileRequest<Record<string, unknown>>(
-        `${API_ENDPOINTS.V2.SERVER_INFO}/`
-      );
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(info, null, 2) }],
-      };
-    }
-  );
-
-  /**
-   * Tool: get_account_info
-   *
-   * Retrieves information about the currently authenticated user,
-   * including name, email, and storage quota.
-   *
-   * @returns Object containing user account details
-   */
-  server.registerTool(
-    'get_account_info',
-    {
-      description: "Get the authenticated user's account information",
-      inputSchema: {},
-      annotations: { readOnlyHint: true },
-    },
-    async () => {
-      const info = await seafileRequest<Record<string, unknown>>(
-        `${API_ENDPOINTS.V2.ACCOUNT_INFO}/`
+        `${API_ENDPOINTS.PUBLIC.SERVER_INFO}/`
       );
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(info, null, 2) }],
